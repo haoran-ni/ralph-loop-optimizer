@@ -138,7 +138,7 @@ Verification:
 - Tests create a temporary harness and confirm inspection output is stable.
 - Dirty worktree detection refuses to start optimization unless configured resume behavior allows it.
 
-Status: Not finished.
+Status: Finished. The repository now has read-only harness inspection, candidate file discovery, instruction reading, worktree status detection, and temporary Git repository tests.
 
 ## Task 4: Operating Brief Initialization [Importance: 10]
 
