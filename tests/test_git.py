@@ -135,6 +135,20 @@ def test_commit_rejects_empty_message(tmp_path: Path) -> None:
         commit(repo_path, " ")
 
 
+def test_commit_can_create_empty_commit(tmp_path: Path) -> None:
+    repo_path = _git_repo(tmp_path / "harness")
+    _write(repo_path / "README.md", "# Harness\n")
+    _commit_all(repo_path, "initial")
+    previous_head = current_head(repo_path)
+
+    new_head = commit(repo_path, "empty experiment", allow_empty=True)
+
+    assert new_head == current_head(repo_path)
+    assert new_head != previous_head
+    assert _latest_subject(repo_path) == "empty experiment"
+    assert get_status(repo_path).is_dirty is False
+
+
 def test_get_diff_after_staging_matches_committed_experiment(
     tmp_path: Path,
 ) -> None:

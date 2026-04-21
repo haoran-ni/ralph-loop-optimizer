@@ -113,7 +113,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     print(f"Iterations completed: {len(state.completed_iterations)}")
     if state.completed_iterations:
         latest = state.completed_iterations[-1]
-        print(f"Latest commit: {latest.commit_hash}")
+        print(f"Latest experiment commit: {latest.commit_hash}")
+        print(f"Latest artifact commit: {latest.artifact_commit_hash}")
     return 0
 
 

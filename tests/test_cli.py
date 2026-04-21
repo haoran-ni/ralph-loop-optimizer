@@ -74,7 +74,8 @@ def test_run_command_completes_configured_loop(
     assert exit_code == 0
     assert "Run run-" in output
     assert "Iterations completed: 1" in output
-    assert "Latest commit:" in output
+    assert "Latest experiment commit:" in output
+    assert "Latest artifact commit:" in output
     assert _git_status(harness_path) == ""
 
 

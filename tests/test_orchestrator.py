@@ -31,7 +31,8 @@ def test_run_loop_completes_one_fake_iteration(tmp_path: Path) -> None:
     record = state.completed_iterations[0]
     assert record.iteration_number == 1
     assert record.succeeded is True
-    assert record.commit_hash == current_head(harness_path)
+    assert record.artifact_commit_hash == current_head(harness_path)
+    assert record.commit_hash != record.artifact_commit_hash
     assert get_status(harness_path).is_dirty is False
 
     iteration_dir = state.run_paths.iterations_dir / "001"
@@ -43,21 +44,30 @@ def test_run_loop_completes_one_fake_iteration(tmp_path: Path) -> None:
     assert "RALPH_LOOP.md" in (iteration_dir / "diff.patch").read_text(
         encoding="utf-8"
     )
+    assert (iteration_dir / "diff.patch").read_text(encoding="utf-8") == (
+        _show_commit_diff(harness_path, record.commit_hash)
+    )
     assert "Backend succeeded: yes" in (iteration_dir / "result.md").read_text(
         encoding="utf-8"
     )
-    assert "candidate improvement" in (iteration_dir / "lesson.md").read_text(
-        encoding="utf-8"
-    )
+    result = (iteration_dir / "result.md").read_text(encoding="utf-8")
+    lesson = (iteration_dir / "lesson.md").read_text(encoding="utf-8")
+    assert f"- Experiment commit hash: `{record.commit_hash}`" in result
+    assert f"- Commit: `{record.commit_hash}`." in lesson
+    assert f"- Commit hash: `{record.commit_hash}`" in lesson
+    assert "pending until commit completes" not in result
+    assert "not recorded" not in lesson
+    assert "candidate improvement" in lesson
 
-    committed_files = _latest_commit_files(harness_path)
-    assert "RALPH_LOOP.md" in committed_files
+    experiment_files = _commit_files(harness_path, record.commit_hash)
+    artifact_files = _commit_files(harness_path, record.artifact_commit_hash)
+    assert "RALPH_LOOP.md" in experiment_files
     assert f"{state.run_paths.run_dir.relative_to(harness_path).as_posix()}/config.json" in (
-        committed_files
+        artifact_files
     )
     assert (
         f"{iteration_dir.relative_to(harness_path).as_posix()}/lesson.md"
-        in committed_files
+        in artifact_files
     )
 
 
@@ -201,15 +211,26 @@ def _commit_all(repo_path: Path, message: str) -> None:
     )
 
 
-def _latest_commit_files(repo_path: Path) -> set[str]:
+def _commit_files(repo_path: Path, commit_hash: str) -> set[str]:
     result = subprocess.run(
-        ["git", "show", "--name-only", "--format=", "HEAD"],
+        ["git", "show", "--name-only", "--format=", commit_hash],
         cwd=repo_path,
         check=True,
         capture_output=True,
         text=True,
     )
     return {line for line in result.stdout.splitlines() if line}
+
+
+def _show_commit_diff(repo_path: Path, commit_hash: str) -> str:
+    result = subprocess.run(
+        ["git", "show", "--format=", "--binary", commit_hash],
+        cwd=repo_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout
 
 
 def _python_command(code: str) -> str:

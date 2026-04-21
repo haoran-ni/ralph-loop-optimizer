@@ -85,12 +85,16 @@ def stage_paths(repo_path: Path, paths: list[Path]) -> None:
     )
 
 
-def commit(repo_path: Path, message: str) -> str:
+def commit(repo_path: Path, message: str, *, allow_empty: bool = False) -> str:
     repo_path = _repo_root(repo_path)
     if not message.strip():
         raise GitError("commit message must not be empty")
 
-    _run_git(repo_path, ["commit", "-m", message.strip()], check=True)
+    args = ["commit"]
+    if allow_empty:
+        args.append("--allow-empty")
+    args.extend(["-m", message.strip()])
+    _run_git(repo_path, args, check=True)
     return current_head(repo_path)
 
 

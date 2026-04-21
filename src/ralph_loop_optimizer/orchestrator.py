@@ -49,6 +49,7 @@ class IterationRecord:
     backend_result: BackendResult
     evaluation_result: EvaluationResult
     commit_hash: str
+    artifact_commit_hash: str
 
     @property
     def succeeded(self) -> bool:
@@ -106,7 +107,14 @@ def run_iteration(state: RunState) -> IterationRecord:
         )
     )
     evaluation_text = format_evaluation_result(evaluation_result)
+
+    stage_paths(state.run_paths.repo_path, [Path(".")])
     captured_diff = get_diff(state.run_paths.repo_path)
+    experiment_commit_hash = commit(
+        state.run_paths.repo_path,
+        f"ralph-loop iteration {iteration_number:03d} experiment",
+        allow_empty=True,
+    )
 
     iteration_paths = create_iteration_paths(state.run_paths, iteration_number)
     _write_iteration_artifacts(
@@ -117,12 +125,13 @@ def run_iteration(state: RunState) -> IterationRecord:
         captured_diff,
         backend_result,
         evaluation_result,
+        experiment_commit_hash,
     )
 
     stage_paths(state.run_paths.repo_path, [Path(".")])
-    commit_hash = commit(
+    artifact_commit_hash = commit(
         state.run_paths.repo_path,
-        f"ralph-loop iteration {iteration_number:03d}",
+        f"ralph-loop iteration {iteration_number:03d} artifacts",
     )
 
     return IterationRecord(
@@ -134,7 +143,8 @@ def run_iteration(state: RunState) -> IterationRecord:
         diff_path=iteration_paths.diff_path,
         backend_result=backend_result,
         evaluation_result=evaluation_result,
-        commit_hash=commit_hash,
+        commit_hash=experiment_commit_hash,
+        artifact_commit_hash=artifact_commit_hash,
     )
 
 
@@ -178,6 +188,7 @@ def _write_iteration_artifacts(
     captured_diff: str,
     backend_result: BackendResult,
     evaluation_result: EvaluationResult,
+    experiment_commit_hash: str,
 ) -> None:
     if not state.run_paths.config_path.exists():
         write_config(state.config, state.run_paths.config_path)
@@ -203,6 +214,7 @@ def _write_iteration_artifacts(
             iteration_paths.iteration_number,
             backend_result,
             evaluation_result,
+            experiment_commit_hash,
         ),
         repo_path=state.run_paths.repo_path,
     )
@@ -218,6 +230,7 @@ def _write_iteration_artifacts(
                 evaluation_exit_code=evaluation_result.exit_code,
                 evaluation_timed_out=evaluation_result.timed_out,
                 manual_evaluation_required=evaluation_result.manual_required,
+                commit_hash=experiment_commit_hash,
                 evaluation_path=_relative_path(
                     iteration_paths.evaluation_path,
                     state.run_paths.repo_path,
@@ -240,6 +253,7 @@ def _format_iteration_result(
     iteration_number: int,
     backend_result: BackendResult,
     evaluation_result: EvaluationResult,
+    experiment_commit_hash: str,
 ) -> str:
     return "\n".join(
         [
@@ -255,7 +269,7 @@ def _format_iteration_result(
             f"- Evaluation timed out: {'yes' if evaluation_result.timed_out else 'no'}",
             "- Manual evaluation required: "
             f"{'yes' if evaluation_result.manual_required else 'no'}",
-            "- Commit hash: pending until commit completes",
+            f"- Experiment commit hash: `{experiment_commit_hash}`",
             "",
             "## Backend Stdout",
             "",
