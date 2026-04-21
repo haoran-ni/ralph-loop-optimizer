@@ -118,19 +118,39 @@ Domain-specific configuration should usually stay inside the harness. For exampl
 
 ## Example Harnesses
 
-This repository is expected to include example harness folders that demonstrate how external systems connect to the optimizer.
+This repository includes example harness folders that demonstrate how external systems connect to the optimizer.
 
-Example harnesses should be complete enough to run, but simple enough to understand quickly. A good first example should prioritize clarity, deterministic behavior, and fast evaluation over realism.
+Example harness folders in this repository are templates. The optimizer requires the harness path itself to be a local Git repository root, so run an example by copying it into a separate directory and initializing Git there. Do not point `--harness` directly at a subfolder inside this optimizer repository.
 
-Potential examples:
+For example:
 
-- A tiny ML training workflow where the optimizer improves a model architecture.
-- A simple poker engine where the optimizer improves a bot strategy.
-- A minimal toy benchmark that demonstrates the full loop quickly.
+```bash
+cp -R examples/cifar10-cnn /tmp/cifar10-cnn-harness
+cd /tmp/cifar10-cnn-harness
+git init
+git add .
+git commit -m "initial CIFAR-10 harness"
+python -m pip install -r requirements.txt
+```
+
+Then initialize the optimizer against the copied harness repository:
+
+```bash
+ralph-loop init \
+  --harness /tmp/cifar10-cnn-harness \
+  --goal "Improve the CIFAR-10 test accuracy of the CNN model." \
+  --evaluation-command "python evaluate.py"
+```
+
+Generated files such as `RALPH_LOOP.md`, `ralph_loop_runs/`, and iteration commits are written to the copied harness repository, not to this optimizer repository.
+
+Current examples:
+
+- `examples/cifar10-cnn/`: a PyTorch and torchvision CIFAR-10 harness where the optimizer improves a small CNN by editing `model.py` and `train_config.py`.
 
 ## Current Status
 
-This repository now has an initial Python package scaffold, CLI entry point, configuration model, harness inspection, and `init` command. Product commands such as `run` are still planned.
+This repository now has an initial Python package scaffold, CLI entry point, configuration model, harness inspection, `init` command, backend adapters, evaluation capture, artifact writing, Git commit handling, and a bounded `run` command.
 
 ## Development
 
