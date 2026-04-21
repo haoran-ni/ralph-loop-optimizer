@@ -85,6 +85,20 @@ def test_write_operating_brief_can_overwrite_when_explicit(
     assert brief_path.read_text(encoding="utf-8") == "second\n"
 
 
+def test_write_operating_brief_refuses_symlinked_brief(
+    tmp_path: Path,
+) -> None:
+    harness_path = _git_repo(tmp_path / "harness")
+    outside_path = tmp_path / "outside.md"
+    outside_path.write_text("outside\n", encoding="utf-8")
+    (harness_path / "RALPH_LOOP.md").symlink_to(outside_path)
+
+    with pytest.raises(BriefError, match="symlink"):
+        write_operating_brief(harness_path, "changed\n", overwrite=True)
+
+    assert outside_path.read_text(encoding="utf-8") == "outside\n"
+
+
 def _git_repo(path: Path) -> Path:
     path.mkdir()
     subprocess.run(["git", "init"], cwd=path, check=True, capture_output=True)

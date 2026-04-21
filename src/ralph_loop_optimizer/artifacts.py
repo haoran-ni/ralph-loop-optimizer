@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import shutil
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -88,22 +87,22 @@ def create_iteration_paths(
     )
 
 
-def write_text_artifact(path: Path, content: str) -> None:
-    destination = _prepare_destination(path)
+def write_text_artifact(path: Path, content: str, *, repo_path: Path) -> None:
+    destination = _prepare_destination(path, repo_path)
     destination.write_text(content, encoding="utf-8")
 
 
-def write_json_artifact(path: Path, data: object) -> None:
+def write_json_artifact(path: Path, data: object, *, repo_path: Path) -> None:
     content = json.dumps(data, indent=2, sort_keys=True) + "\n"
-    write_text_artifact(path, content)
+    write_text_artifact(path, content, repo_path=repo_path)
 
 
-def copy_artifact(source: Path, destination: Path) -> None:
+def copy_artifact(source: Path, destination: Path, *, repo_path: Path) -> None:
     source = source.expanduser()
     if not source.is_file():
         raise ArtifactError(f"artifact source must be a file: {source}")
 
-    safe_destination = _prepare_destination(destination)
+    safe_destination = _prepare_destination(destination, repo_path)
     shutil.copyfile(source, safe_destination)
 
 
@@ -117,34 +116,20 @@ def _validate_run_id(run_id: str) -> None:
         raise ArtifactError("run_id must be a single directory name")
 
 
-def _prepare_destination(path: Path) -> Path:
-    destination = _absolute_path(path.expanduser())
-    repo_path = _git_root_for_destination(destination)
+def _prepare_destination(path: Path, repo_path: Path) -> Path:
+    repo_path = repo_path.expanduser().resolve()
+    assert_git_repository(repo_path)
+    destination = _absolute_path(path.expanduser(), repo_path)
     resolved_destination = destination.resolve(strict=False)
     _assert_path_inside_repo(resolved_destination, repo_path)
     resolved_destination.parent.mkdir(parents=True, exist_ok=True)
     return resolved_destination
 
 
-def _absolute_path(path: Path) -> Path:
+def _absolute_path(path: Path, repo_path: Path) -> Path:
     if path.is_absolute():
         return path
-    return Path.cwd() / path
-
-
-def _git_root_for_destination(path: Path) -> Path:
-    for parent in path.parents:
-        if parent.exists() and parent.is_dir():
-            result = subprocess.run(
-                ["git", "rev-parse", "--show-toplevel"],
-                cwd=parent,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode == 0:
-                return Path(result.stdout.strip()).resolve()
-    raise ArtifactError(f"artifact path must be inside a Git repository: {path}")
+    return repo_path / path
 
 
 def _assert_path_inside_repo(path: Path, repo_path: Path) -> None:

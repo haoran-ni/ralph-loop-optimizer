@@ -51,7 +51,7 @@ def test_write_config_round_trips(tmp_path: Path) -> None:
     original = OptimizerConfig(
         harness_path=harness_path,
         goal="Improve the workflow.",
-        backend="codex",
+        backend="fake",
         max_iterations=2,
         evaluation_command=None,
         command_timeout_seconds=None,
@@ -127,11 +127,11 @@ def test_load_config_rejects_boolean_max_iterations(tmp_path: Path) -> None:
         load_config(config_path)
 
 
-def test_validate_config_rejects_unknown_backend(tmp_path: Path) -> None:
+def test_validate_config_rejects_unregistered_backend(tmp_path: Path) -> None:
     config = OptimizerConfig(
         harness_path=_git_repo(tmp_path / "harness"),
         goal="Improve the benchmark score.",
-        backend="unknown",
+        backend="codex",
     )
 
     with pytest.raises(ConfigError, match="backend must be one of"):

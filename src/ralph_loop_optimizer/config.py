@@ -7,10 +7,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from ralph_loop_optimizer.backends.registry import list_backends
 from ralph_loop_optimizer.harness import HarnessError, assert_git_repository
 
 
-SUPPORTED_BACKENDS = ("fake", "codex", "opencode", "claude")
+SUPPORTED_BACKENDS = tuple(list_backends())
 RESUME_BEHAVIORS = ("refuse_dirty", "resume_existing")
 
 

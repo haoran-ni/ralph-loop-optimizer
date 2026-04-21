@@ -183,9 +183,9 @@ Proposed files and functions:
   - `IterationPaths`
   - `create_run_paths(repo_path: Path, run_id: str) -> RunPaths`
   - `create_iteration_paths(run_paths: RunPaths, iteration_number: int) -> IterationPaths`
-  - `write_text_artifact(path: Path, content: str) -> None`
-  - `write_json_artifact(path: Path, data: object) -> None`
-  - `copy_artifact(source: Path, destination: Path) -> None`
+  - `write_text_artifact(path: Path, content: str, *, repo_path: Path) -> None`
+  - `write_json_artifact(path: Path, data: object, *, repo_path: Path) -> None`
+  - `copy_artifact(source: Path, destination: Path, *, repo_path: Path) -> None`
 - Artifact files:
   - `config.json`
   - `iterations/001/prompt.md`

@@ -52,8 +52,16 @@ def test_write_text_and_json_artifacts(tmp_path: Path) -> None:
     run_paths = create_run_paths(_git_repo(tmp_path / "harness"), "run-001")
     iteration_paths = create_iteration_paths(run_paths, 1)
 
-    write_text_artifact(iteration_paths.prompt_path, "Try one improvement.\n")
-    write_json_artifact(run_paths.config_path, {"backend": "fake", "max": 1})
+    write_text_artifact(
+        iteration_paths.prompt_path,
+        "Try one improvement.\n",
+        repo_path=run_paths.repo_path,
+    )
+    write_json_artifact(
+        run_paths.config_path,
+        {"backend": "fake", "max": 1},
+        repo_path=run_paths.repo_path,
+    )
 
     assert iteration_paths.prompt_path.read_text(encoding="utf-8") == (
         "Try one improvement.\n"
@@ -70,18 +78,26 @@ def test_copy_artifact_copies_file_into_run_layout(tmp_path: Path) -> None:
     source = tmp_path / "evaluation-output.txt"
     source.write_text("score=10\n", encoding="utf-8")
 
-    copy_artifact(source, iteration_paths.evaluation_path)
+    copy_artifact(
+        source,
+        iteration_paths.evaluation_path,
+        repo_path=run_paths.repo_path,
+    )
 
     assert iteration_paths.evaluation_path.read_text(encoding="utf-8") == "score=10\n"
 
 
-def test_artifact_writes_reject_paths_outside_git_repository(
+def test_artifact_writes_reject_paths_outside_harness_repository(
     tmp_path: Path,
 ) -> None:
-    outside_path = tmp_path / "not-a-repo" / "artifact.txt"
+    harness_path = _git_repo(tmp_path / "harness")
+    other_repo_path = _git_repo(tmp_path / "other")
+    outside_path = other_repo_path / "artifact.txt"
 
-    with pytest.raises(ArtifactError, match="Git repository"):
-        write_text_artifact(outside_path, "outside\n")
+    with pytest.raises(ArtifactError, match="inside the harness"):
+        write_text_artifact(outside_path, "outside\n", repo_path=harness_path)
+
+    assert not outside_path.exists()
 
 
 def test_artifact_writes_reject_paths_that_escape_repository(
@@ -92,9 +108,25 @@ def test_artifact_writes_reject_paths_that_escape_repository(
     escaping_path = run_paths.run_dir / ".." / ".." / ".." / "outside.txt"
 
     with pytest.raises(ArtifactError, match="inside the harness"):
-        write_text_artifact(escaping_path, "outside\n")
+        write_text_artifact(escaping_path, "outside\n", repo_path=harness_path)
 
     assert not (tmp_path / "outside.txt").exists()
+
+
+def test_relative_artifact_paths_are_resolved_inside_harness(
+    tmp_path: Path,
+) -> None:
+    harness_path = _git_repo(tmp_path / "harness")
+
+    write_text_artifact(
+        Path("ralph_loop_runs/run-001/config.json"),
+        "config\n",
+        repo_path=harness_path,
+    )
+
+    assert (
+        harness_path / "ralph_loop_runs" / "run-001" / "config.json"
+    ).read_text(encoding="utf-8") == "config\n"
 
 
 def test_create_run_paths_rejects_escaping_run_id(tmp_path: Path) -> None:

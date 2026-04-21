@@ -126,6 +126,9 @@ def write_operating_brief(
     assert_git_repository(repo_path)
     brief_path = repo_path / BRIEF_FILENAME
 
+    if brief_path.is_symlink():
+        raise BriefError(f"{BRIEF_FILENAME} must not be a symlink")
+
     if brief_path.exists() and not overwrite:
         raise BriefError(
             f"{BRIEF_FILENAME} already exists; pass overwrite=True to replace it"
