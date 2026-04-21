@@ -340,7 +340,7 @@ Verification:
 - Each completed iteration creates a Git commit in the harness repository.
 - The saved `diff.patch` matches the committed experiment.
 
-Status: Not finished.
+Status: Finished. The repository now has Git status, clean-worktree refusal, diff capture including untracked files, path-safe staging, commit creation, current HEAD lookup, and temporary-repository Git tests.
 
 ## Task 11: Lesson Distillation [Importance: 8]
 
