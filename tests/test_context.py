@@ -156,6 +156,22 @@ def test_build_iteration_prompt_handles_missing_optional_context(
     assert "No prior evaluation output recorded." in prompt
 
 
+def test_build_iteration_prompt_uses_adaptive_fences_for_embedded_fences(
+    tmp_path: Path,
+) -> None:
+    config = OptimizerConfig(
+        harness_path=_git_repo(tmp_path / "harness"),
+        goal="Improve the requested result.",
+    )
+    context = IterationContext(
+        operating_brief="# Brief\n\n```python\nprint('ok')\n```\n",
+    )
+
+    prompt = build_iteration_prompt(config, context)
+
+    assert "````text\n# Brief\n\n```python\nprint('ok')\n```\n````" in prompt
+
+
 def test_build_iteration_prompt_does_not_add_domain_specific_assumptions(
     tmp_path: Path,
 ) -> None:

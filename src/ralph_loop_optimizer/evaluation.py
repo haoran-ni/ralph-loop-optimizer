@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import signal
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -65,22 +67,25 @@ def run_evaluation(request: EvaluationRequest) -> EvaluationResult:
         raise EvaluationError("evaluation_command must not be empty when provided")
 
     started_at = perf_counter()
+    process = subprocess.Popen(
+        command,
+        cwd=harness_path,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        **_process_group_kwargs(),
+    )
     try:
-        completed = subprocess.run(
-            command,
-            cwd=harness_path,
-            shell=True,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=request.timeout_seconds,
-        )
+        stdout, stderr = process.communicate(timeout=request.timeout_seconds)
     except subprocess.TimeoutExpired as exc:
+        _kill_process_group(process)
+        stdout, stderr = process.communicate()
         return EvaluationResult(
             evaluation_command=command,
             exit_code=None,
-            stdout=_text_from_timeout_output(exc.stdout),
-            stderr=_text_from_timeout_output(exc.stderr),
+            stdout=_merge_timeout_output(exc.stdout, stdout),
+            stderr=_merge_timeout_output(exc.stderr, stderr),
             elapsed_seconds=perf_counter() - started_at,
             timed_out=True,
             output_files=_read_output_files(output_paths, harness_path),
@@ -88,9 +93,9 @@ def run_evaluation(request: EvaluationRequest) -> EvaluationResult:
 
     return EvaluationResult(
         evaluation_command=command,
-        exit_code=completed.returncode,
-        stdout=completed.stdout,
-        stderr=completed.stderr,
+        exit_code=process.returncode,
+        stdout=stdout,
+        stderr=stderr,
         elapsed_seconds=perf_counter() - started_at,
         output_files=_read_output_files(output_paths, harness_path),
     )
@@ -207,6 +212,52 @@ def _relative_path(path: Path, repo_path: Path) -> Path:
         return path.relative_to(repo_path)
     except ValueError:
         return path
+
+
+def _process_group_kwargs() -> dict[str, object]:
+    if os.name == "nt":
+        return {
+            "creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+        }
+    return {"start_new_session": True}
+
+
+def _kill_process_group(process: subprocess.Popen[str]) -> None:
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(process.pid)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if process.poll() is None:
+            _kill_process(process)
+        return
+
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        return
+    if process.poll() is None:
+        _kill_process(process)
+
+
+def _kill_process(process: subprocess.Popen[str]) -> None:
+    try:
+        process.kill()
+    except ProcessLookupError:
+        return
+
+
+def _merge_timeout_output(
+    timeout_output: str | bytes | None,
+    final_output: str | bytes | None,
+) -> str:
+    timeout_text = _text_from_timeout_output(timeout_output)
+    final_text = _text_from_timeout_output(final_output)
+    if final_text.startswith(timeout_text):
+        return final_text
+    return timeout_text + final_text
 
 
 def _text_from_timeout_output(output: str | bytes | None) -> str:

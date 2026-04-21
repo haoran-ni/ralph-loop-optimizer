@@ -3,6 +3,7 @@ from __future__ import annotations
 import shlex
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -89,6 +90,36 @@ def test_run_evaluation_captures_timeout(tmp_path: Path) -> None:
 
     assert "- Timed out: yes" in formatted
     assert "- Exit code: not available" in formatted
+
+
+def test_run_evaluation_timeout_kills_child_processes(tmp_path: Path) -> None:
+    harness_path = _git_repo(tmp_path / "harness")
+    sentinel_path = harness_path / "survived.txt"
+    child_code = (
+        "import time; "
+        "from pathlib import Path; "
+        "time.sleep(2); "
+        "Path('survived.txt').write_text('alive\\n', encoding='utf-8')"
+    )
+    parent_code = (
+        "import subprocess, sys, time; "
+        f"subprocess.Popen([sys.executable, '-c', {child_code!r}]); "
+        "print('child started', flush=True); "
+        "time.sleep(5)"
+    )
+
+    result = run_evaluation(
+        EvaluationRequest(
+            harness_path=harness_path,
+            evaluation_command=_python_command(parent_code),
+            timeout_seconds=1,
+        )
+    )
+    time.sleep(2.5)
+
+    assert result.timed_out is True
+    assert "child started" in result.stdout
+    assert not sentinel_path.exists()
 
 
 def test_run_evaluation_records_manual_mode(tmp_path: Path) -> None:

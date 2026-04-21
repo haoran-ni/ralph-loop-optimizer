@@ -219,7 +219,20 @@ def _format_text_block(content: str) -> list[str]:
     text = content.strip()
     if not text:
         return ["(empty)"]
-    return ["```text", text, "```"]
+    fence = "`" * max(3, _longest_backtick_run(text) + 1)
+    return [f"{fence}text", text, fence]
+
+
+def _longest_backtick_run(text: str) -> int:
+    longest = 0
+    current = 0
+    for character in text:
+        if character == "`":
+            current += 1
+            longest = max(longest, current)
+        else:
+            current = 0
+    return longest
 
 
 def _relative_path(path: Path, repo_path: Path) -> str:

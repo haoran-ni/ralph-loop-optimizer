@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -60,7 +61,7 @@ def get_diff(repo_path: Path) -> str:
     for path in _untracked_files(repo_path):
         result = _run_git(
             repo_path,
-            ["diff", "--binary", "--no-index", "--", "/dev/null", path.as_posix()],
+            ["diff", "--binary", "--no-index", "--", os.devnull, path.as_posix()],
             check=False,
         )
         if result.stdout:

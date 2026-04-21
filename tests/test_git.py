@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+import ralph_loop_optimizer.git as git_helpers
 from ralph_loop_optimizer.git import (
     GitError,
     assert_clean_worktree,
@@ -55,6 +56,24 @@ def test_get_diff_captures_tracked_and_untracked_changes(
     assert "diff --git a/README.md b/README.md" in diff
     assert "+Changed." in diff
     assert "notes.txt" in diff
+    assert "+new note" in diff
+
+
+def test_get_diff_uses_configured_null_device_for_untracked_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_path = _git_repo(tmp_path / "harness")
+    empty_base = tmp_path / "empty-base"
+    empty_base.write_text("", encoding="utf-8")
+    _write(repo_path / "README.md", "# Harness\n")
+    _commit_all(repo_path, "initial")
+    _write(repo_path / "notes.txt", "new note\n")
+    monkeypatch.setattr(git_helpers.os, "devnull", str(empty_base))
+
+    diff = get_diff(repo_path)
+
+    assert str(empty_base) in diff
     assert "+new note" in diff
 
 
