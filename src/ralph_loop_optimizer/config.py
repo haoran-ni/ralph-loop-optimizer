@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from ralph_loop_optimizer.harness import HarnessError, assert_git_repository
+
 
 SUPPORTED_BACKENDS = ("fake", "codex", "opencode", "claude")
 RESUME_BEHAVIORS = ("refuse_dirty", "resume_existing")
@@ -57,8 +59,10 @@ def validate_config(config: OptimizerConfig) -> None:
         raise ConfigError(f"harness_path does not exist: {harness_path}")
     if not harness_path.is_dir():
         raise ConfigError(f"harness_path must be a directory: {harness_path}")
-    if not (harness_path / ".git").exists():
-        raise ConfigError(f"harness_path must be a Git repository: {harness_path}")
+    try:
+        assert_git_repository(harness_path)
+    except HarnessError as exc:
+        raise ConfigError(str(exc)) from exc
 
     if not config.goal.strip():
         raise ConfigError("goal must not be empty")
@@ -69,6 +73,10 @@ def validate_config(config: OptimizerConfig) -> None:
             f"backend must be one of: {supported}; got {config.backend!r}"
         )
 
+    if isinstance(config.max_iterations, bool) or not isinstance(
+        config.max_iterations, int
+    ):
+        raise ConfigError("max_iterations must be an integer")
     if config.max_iterations < 1:
         raise ConfigError("max_iterations must be at least 1")
 
@@ -77,6 +85,15 @@ def validate_config(config: OptimizerConfig) -> None:
         and not config.evaluation_command.strip()
     ):
         raise ConfigError("evaluation_command must not be empty when provided")
+
+    if (
+        config.command_timeout_seconds is not None
+        and (
+            isinstance(config.command_timeout_seconds, bool)
+            or not isinstance(config.command_timeout_seconds, int)
+        )
+    ):
+        raise ConfigError("command_timeout_seconds must be an integer when provided")
 
     if (
         config.command_timeout_seconds is not None
@@ -173,7 +190,7 @@ def _optional_string_field(data: dict[str, Any], key: str) -> str | None:
 
 def _integer_field(data: dict[str, Any], key: str, default: int) -> int:
     value = data.get(key, default)
-    if not isinstance(value, int):
+    if isinstance(value, bool) or not isinstance(value, int):
         raise ConfigError(f"{key} must be an integer")
     return value
 
@@ -182,6 +199,6 @@ def _optional_integer_field(data: dict[str, Any], key: str) -> int | None:
     value = data.get(key)
     if value is None:
         return None
-    if not isinstance(value, int):
+    if isinstance(value, bool) or not isinstance(value, int):
         raise ConfigError(f"{key} must be an integer when provided")
     return value

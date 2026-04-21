@@ -86,6 +86,18 @@ def test_validate_config_rejects_non_git_harness(tmp_path: Path) -> None:
         validate_config(config)
 
 
+def test_validate_config_rejects_fake_git_directory(tmp_path: Path) -> None:
+    harness_path = tmp_path / "harness"
+    (harness_path / ".git").mkdir(parents=True)
+    config = OptimizerConfig(
+        harness_path=harness_path,
+        goal="Improve the benchmark score.",
+    )
+
+    with pytest.raises(ConfigError, match="Git repository"):
+        validate_config(config)
+
+
 def test_validate_config_rejects_invalid_max_iterations(tmp_path: Path) -> None:
     config = OptimizerConfig(
         harness_path=_git_repo(tmp_path / "harness"),
@@ -95,6 +107,24 @@ def test_validate_config_rejects_invalid_max_iterations(tmp_path: Path) -> None:
 
     with pytest.raises(ConfigError, match="max_iterations"):
         validate_config(config)
+
+
+def test_load_config_rejects_boolean_max_iterations(tmp_path: Path) -> None:
+    harness_path = _git_repo(tmp_path / "harness")
+    config_path = tmp_path / "optimizer.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "harness_path": str(harness_path),
+                "goal": "Improve the benchmark score.",
+                "max_iterations": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="max_iterations must be an integer"):
+        load_config(config_path)
 
 
 def test_validate_config_rejects_unknown_backend(tmp_path: Path) -> None:
@@ -128,6 +158,27 @@ def test_validate_config_rejects_invalid_timeout(tmp_path: Path) -> None:
 
     with pytest.raises(ConfigError, match="command_timeout_seconds"):
         validate_config(config)
+
+
+def test_load_config_rejects_boolean_timeout(tmp_path: Path) -> None:
+    harness_path = _git_repo(tmp_path / "harness")
+    config_path = tmp_path / "optimizer.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "harness_path": str(harness_path),
+                "goal": "Improve the benchmark score.",
+                "command_timeout_seconds": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ConfigError,
+        match="command_timeout_seconds must be an integer",
+    ):
+        load_config(config_path)
 
 
 def _git_repo(path: Path) -> Path:

@@ -144,7 +144,11 @@ def _repository_files(repo_path: Path) -> list[Path]:
         check=True,
     )
     return sorted(
-        (Path(line) for line in result.stdout.splitlines() if line),
+        (
+            Path(line)
+            for line in result.stdout.splitlines()
+            if line and (repo_path / line).is_file()
+        ),
         key=lambda path: path.as_posix(),
     )
 

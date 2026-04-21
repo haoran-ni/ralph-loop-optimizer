@@ -70,6 +70,22 @@ def test_read_harness_instructions_detects_agent_instruction_files(
     }
 
 
+def test_inspect_harness_skips_deleted_tracked_instruction_files(
+    tmp_path: Path,
+) -> None:
+    harness_path = _git_repo(tmp_path / "harness")
+    _write(harness_path / "AGENTS.md", "Use the harness rules.\n")
+    _commit_all(harness_path)
+    (harness_path / "AGENTS.md").unlink()
+
+    summary = inspect_harness(harness_path)
+
+    assert summary.instruction_files == []
+    assert summary.instructions == {}
+    assert summary.worktree_status.is_dirty is True
+    assert summary.worktree_status.entries == (" D AGENTS.md",)
+
+
 def test_get_worktree_status_detects_clean_and_dirty_worktree(
     tmp_path: Path,
 ) -> None:
