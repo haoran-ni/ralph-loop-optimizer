@@ -130,7 +130,7 @@ Potential examples:
 
 ## Current Status
 
-This repository now has an initial Python package scaffold and CLI entry point. Product commands such as `init` and `run` are still planned.
+This repository now has an initial Python package scaffold, CLI entry point, configuration model, harness inspection, and `init` command. Product commands such as `run` are still planned.
 
 ## Development
 

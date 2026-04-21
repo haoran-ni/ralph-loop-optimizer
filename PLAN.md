@@ -166,7 +166,7 @@ Verification:
 - Running `init` on a sample harness creates `RALPH_LOOP.md`.
 - The command exits before any harness modification beyond the brief.
 
-Status: Not finished.
+Status: Finished. The repository now generates `RALPH_LOOP.md` through `ralph-loop init`, preserves existing briefs by default, and tests the explicit initialization boundary.
 
 ## Task 5: Run Artifact Layout [Importance: 9]
 
