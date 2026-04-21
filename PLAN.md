@@ -199,7 +199,7 @@ Verification:
 - Tests confirm path creation and zero-padded iteration directories.
 - Tests confirm artifact writes do not escape the harness repository.
 
-Status: Not finished.
+Status: Finished. The repository now has run and iteration artifact path helpers, text/JSON/copy writers, zero-padded iteration directories, and safety checks that reject artifact writes outside a Git harness repository.
 
 ## Task 6: Coding CLI Adapter Interface [Importance: 9]
 
