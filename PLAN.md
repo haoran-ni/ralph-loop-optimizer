@@ -366,7 +366,7 @@ Verification:
 - `lesson.md` is created for every iteration.
 - Future iteration prompts include compact prior lessons.
 
-Status: Not finished.
+Status: Finished. The repository now has deterministic lesson distillation from iteration evidence, lesson loading, prompt formatting helpers, and focused tests for successful, failed, manual, timed-out, and inconclusive evaluation outcomes.
 
 ## Task 12: Core Orchestration Loop [Importance: 10]
 
