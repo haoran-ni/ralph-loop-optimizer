@@ -517,7 +517,7 @@ Verification:
 - README commands are copy-paste runnable for the example harness workflow.
 - `run` continues to require an explicit user command after review completes.
 
-Status: Not finished.
+Status: Finished. The repository now writes a starter `ralph-loop.json` during `init`, supports backend selection for initialization, adds a pre-loop `review` command that invokes the configured backend within the explicit start boundary, checks that review only leaves `RALPH_LOOP.md` and the starter config dirty, documents the generated-config workflow, and tests the fake-backend review path plus running from the generated config.
 
 ## Task 15: Toy Harness Folders [Importance: 8]
 

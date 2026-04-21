@@ -15,7 +15,12 @@ from ralph_loop_optimizer.artifacts import (
 )
 from ralph_loop_optimizer.backends import BackendRequest, BackendResult, get_backend
 from ralph_loop_optimizer.backends.base import run_backend
-from ralph_loop_optimizer.config import OptimizerConfig, validate_config, write_config
+from ralph_loop_optimizer.config import (
+    CONFIG_FILENAME,
+    OptimizerConfig,
+    validate_config,
+    write_config,
+)
 from ralph_loop_optimizer.context import (
     IterationContext,
     build_iteration_prompt,
@@ -293,13 +298,14 @@ def _assert_starting_worktree_safe(repo_path: Path) -> None:
 
     entries = "\n".join(f"- {entry}" for entry in unsafe_entries)
     raise OrchestratorError(
-        "harness worktree has uncommitted changes outside RALPH_LOOP.md; "
+        f"harness worktree has uncommitted changes outside RALPH_LOOP.md and "
+        f"{CONFIG_FILENAME}; "
         f"commit or stash them before starting optimization:\n{entries}"
     )
 
 
 def _is_allowed_starting_entry(entry: str) -> bool:
-    return _status_entry_path(entry) == "RALPH_LOOP.md"
+    return _status_entry_path(entry) in {"RALPH_LOOP.md", CONFIG_FILENAME}
 
 
 def _status_entry_path(entry: str) -> str:

@@ -9,6 +9,8 @@ import pytest
 from ralph_loop_optimizer.config import (
     ConfigError,
     OptimizerConfig,
+    build_starter_config,
+    default_config_path,
     load_config,
     validate_config,
     write_config,
@@ -62,6 +64,32 @@ def test_write_config_round_trips(tmp_path: Path) -> None:
     write_config(original, config_path)
 
     assert load_config(config_path) == original
+
+
+def test_default_config_path_uses_harness_root(tmp_path: Path) -> None:
+    harness_path = _git_repo(tmp_path / "harness")
+
+    assert default_config_path(harness_path) == harness_path.resolve() / (
+        "ralph-loop.json"
+    )
+
+
+def test_build_starter_config_uses_init_values(tmp_path: Path) -> None:
+    harness_path = _git_repo(tmp_path / "harness")
+
+    config = build_starter_config(
+        harness_path=harness_path,
+        goal="Improve the benchmark score.",
+        backend="fake",
+        evaluation_command="python evaluate.py",
+    )
+
+    assert config == OptimizerConfig(
+        harness_path=harness_path.resolve(),
+        goal="Improve the benchmark score.",
+        backend="fake",
+        evaluation_command="python evaluate.py",
+    )
 
 
 def test_validate_config_rejects_missing_harness_path(tmp_path: Path) -> None:

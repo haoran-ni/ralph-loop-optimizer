@@ -13,6 +13,7 @@ from ralph_loop_optimizer.harness import HarnessError, assert_git_repository
 
 SUPPORTED_BACKENDS = tuple(list_backends())
 RESUME_BEHAVIORS = ("refuse_dirty", "resume_existing")
+CONFIG_FILENAME = "ralph-loop.json"
 
 
 class ConfigError(ValueError):
@@ -29,6 +30,27 @@ class OptimizerConfig:
     run_artifact_dir: Path = Path("ralph_loop_runs")
     command_timeout_seconds: int | None = None
     resume_behavior: str = "refuse_dirty"
+
+
+def default_config_path(repo_path: Path) -> Path:
+    return repo_path.expanduser().resolve() / CONFIG_FILENAME
+
+
+def build_starter_config(
+    *,
+    harness_path: Path,
+    goal: str,
+    backend: str = "fake",
+    evaluation_command: str | None = None,
+) -> OptimizerConfig:
+    config = OptimizerConfig(
+        harness_path=harness_path.expanduser().resolve(),
+        goal=goal,
+        backend=backend,
+        evaluation_command=evaluation_command,
+    )
+    validate_config(config)
+    return config
 
 
 def load_config(path: Path) -> OptimizerConfig:

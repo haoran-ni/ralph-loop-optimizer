@@ -52,16 +52,17 @@ Ralph Loop Optimizer does not require a fixed evaluation output schema. A harnes
 
 Structured outputs are recommended because they are easier to compare. Good options include JSON, Markdown summaries, CSV metric tables, or clearly labeled log sections. However, any format is acceptable if the output is visible, repeatable enough to compare, and understandable to an LLM.
 
-## Planned Workflow
+## Workflow
 
 The intended workflow is:
 
 1. The user provides a harness repository directory.
 2. The user provides a prompt describing what they want to optimize.
-3. Ralph Loop Optimizer inspects the harness and creates `RALPH_LOOP.md` in the harness repository.
-4. The user and agent review or refine `RALPH_LOOP.md` until the optimization plan is clear.
-5. The optimizer waits for an explicit user start message.
-6. Each iteration runs a coding CLI against the harness, evaluates the result, records the outcome, saves lessons, and commits the experiment.
+3. Ralph Loop Optimizer inspects the harness and creates `RALPH_LOOP.md` plus a starter `ralph-loop.json` config in the harness repository.
+4. The user reviews or edits `ralph-loop.json`, especially `backend`, `max_iterations`, `evaluation_command`, and `command_timeout_seconds`.
+5. The user can run a pre-loop review to let the selected backend consolidate `RALPH_LOOP.md` and add clarification questions.
+6. The optimizer waits for an explicit `ralph-loop run --config ...` command.
+7. Each iteration runs a coding CLI against the harness, evaluates the result, records the outcome, saves lessons, and commits the experiment.
 
 `RALPH_LOOP.md` is the run-specific operating brief. It should capture:
 
@@ -74,6 +75,8 @@ The intended workflow is:
 
 Optimization should not begin until the user explicitly confirms that the loop should start.
 
+The pre-loop review command is still before the start boundary. It may update `RALPH_LOOP.md` and the starter config, but it must not optimize target source files or create iteration artifacts.
+
 ## Generated Artifacts
 
 Ralph Loop Optimizer is expected to create visible run artifacts inside the harness repository.
@@ -82,6 +85,7 @@ The preferred layout is:
 
 ```text
 RALPH_LOOP.md
+ralph-loop.json
 ralph_loop_runs/
   <run_id>/
     config.*
@@ -97,6 +101,7 @@ ralph_loop_runs/
 The exact filenames and formats may evolve, but the purpose should remain stable:
 
 - `RALPH_LOOP.md` is the human-readable operating brief.
+- `ralph-loop.json` is the starter configuration used by `ralph-loop run`.
 - `ralph_loop_runs/` stores iteration history, evaluation outputs, and lessons.
 - Git commits preserve each experiment so users can inspect, compare, revert, or reuse work.
 
@@ -139,7 +144,36 @@ Then initialize the optimizer against the copied harness repository:
 ralph-loop init \
   --harness /tmp/cifar10-cnn-harness \
   --goal "Improve the CIFAR-10 test accuracy of the CNN model." \
-  --evaluation-command "python evaluate.py"
+  --evaluation-command "python evaluate.py" \
+  --backend fake
+```
+
+This writes:
+
+```text
+/tmp/cifar10-cnn-harness/RALPH_LOOP.md
+/tmp/cifar10-cnn-harness/ralph-loop.json
+```
+
+Review and edit `/tmp/cifar10-cnn-harness/ralph-loop.json` before starting. The most common fields to change are:
+
+- `backend`: use `fake` for deterministic dry runs, or `codex` / `claude` when those CLIs are installed.
+- `max_iterations`: the maximum number of optimization attempts.
+- `evaluation_command`: the harness command that produces performance feedback.
+- `command_timeout_seconds`: optional timeout for backend and evaluation commands.
+
+Optionally ask the configured backend to consolidate the operating brief before the run starts:
+
+```bash
+ralph-loop review --config /tmp/cifar10-cnn-harness/ralph-loop.json
+```
+
+The review step does not create `ralph_loop_runs/` and does not start optimization. It is for improving `RALPH_LOOP.md` and surfacing clarification questions.
+
+Start optimization explicitly:
+
+```bash
+ralph-loop run --config /tmp/cifar10-cnn-harness/ralph-loop.json
 ```
 
 Generated files such as `RALPH_LOOP.md`, `ralph_loop_runs/`, and iteration commits are written to the copied harness repository, not to this optimizer repository.
@@ -150,7 +184,7 @@ Current examples:
 
 ## Current Status
 
-This repository now has an initial Python package scaffold, CLI entry point, configuration model, harness inspection, `init` command, backend adapters, evaluation capture, artifact writing, Git commit handling, and a bounded `run` command.
+This repository now has an initial Python package scaffold, CLI entry point, configuration model, harness inspection, `init` command with starter config generation, pre-loop `review` command, backend adapters, evaluation capture, artifact writing, Git commit handling, and a bounded `run` command.
 
 ## Development
 

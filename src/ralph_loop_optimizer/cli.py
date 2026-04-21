@@ -8,17 +8,24 @@ from pathlib import Path
 from ralph_loop_optimizer import __version__
 from ralph_loop_optimizer.brief import (
     BriefError,
+    brief_exists,
     build_operating_brief,
     write_operating_brief,
+)
+from ralph_loop_optimizer.brief_review import (
+    BriefReviewError,
+    BriefReviewRequest,
+    run_brief_review,
 )
 from ralph_loop_optimizer.backends import BackendError
 from ralph_loop_optimizer.config import (
     ConfigError,
-    OptimizerConfig,
+    build_starter_config,
+    default_config_path,
     load_config,
-    validate_config,
+    write_config,
 )
-from ralph_loop_optimizer.context import ContextError
+from ralph_loop_optimizer.context import ContextError, load_operating_brief
 from ralph_loop_optimizer.evaluation import EvaluationError
 from ralph_loop_optimizer.git import GitError
 from ralph_loop_optimizer.harness import HarnessError, inspect_harness
@@ -63,11 +70,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="optional harness evaluation command to capture in the brief",
     )
     init_parser.add_argument(
+        "--backend",
+        default="fake",
+        help="coding backend to write into the starter config",
+    )
+    init_parser.add_argument(
         "--overwrite",
         action="store_true",
-        help="replace an existing RALPH_LOOP.md",
+        help="replace an existing RALPH_LOOP.md and starter config",
     )
     init_parser.set_defaults(func=cmd_init)
+
+    review_parser = subparsers.add_parser(
+        "review",
+        help="review and consolidate RALPH_LOOP.md before optimization",
+        description=(
+            "Use the configured backend to review RALPH_LOOP.md before any "
+            "optimization iterations start. The review boundary allows edits "
+            "only to RALPH_LOOP.md and the starter config file."
+        ),
+    )
+    review_parser.add_argument(
+        "--config",
+        required=True,
+        type=Path,
+        help="path to a Ralph Loop Optimizer JSON config file",
+    )
+    review_parser.set_defaults(func=cmd_review)
 
     run_parser = subparsers.add_parser(
         "run",
@@ -89,22 +118,68 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def cmd_init(args: argparse.Namespace) -> int:
-    config = OptimizerConfig(
+    config = build_starter_config(
         harness_path=args.harness,
         goal=args.goal,
+        backend=args.backend,
         evaluation_command=args.evaluation_command,
     )
-    validate_config(config)
     summary = inspect_harness(config.harness_path)
+    config_path = default_config_path(summary.repo_path)
+
+    if brief_exists(summary.repo_path) and not args.overwrite:
+        raise BriefError(
+            "RALPH_LOOP.md already exists; pass --overwrite to replace it"
+        )
+    if config_path.is_symlink():
+        raise ConfigError(f"{config_path.name} must not be a symlink")
+    if config_path.exists() and not args.overwrite:
+        raise ConfigError(
+            f"{config_path.name} already exists; pass --overwrite to replace it"
+        )
+
     content = build_operating_brief(config, summary)
     brief_path = write_operating_brief(
         summary.repo_path,
         content,
         overwrite=args.overwrite,
     )
+    write_config(config, config_path)
+
     print(f"Created {brief_path}")
-    print("Optimization was not started. Review RALPH_LOOP.md before running.")
+    print(f"Created {config_path}")
+    print(
+        "Optimization was not started. Review RALPH_LOOP.md and the starter "
+        "config before running."
+    )
     return 0
+
+
+def cmd_review(args: argparse.Namespace) -> int:
+    config_path = args.config.expanduser().resolve()
+    config = load_config(config_path)
+    summary = inspect_harness(config.harness_path)
+    result = run_brief_review(
+        BriefReviewRequest(
+            config=config,
+            config_path=config_path,
+            summary=summary,
+            brief=load_operating_brief(summary.repo_path),
+        )
+    )
+
+    print(f"Review backend: {result.backend_result.backend_name}")
+    print(f"Review succeeded: {'yes' if result.succeeded else 'no'}")
+    print(f"Brief: {result.brief_path}")
+    print(f"Config: {result.config_path}")
+    if result.changed_paths:
+        print("Changed review files:")
+        for path in result.changed_paths:
+            print(f"- {path.as_posix()}")
+    else:
+        print("Changed review files: none")
+    print("Optimization was not started. Run explicitly when ready.")
+    return 0 if result.succeeded else 1
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -129,6 +204,7 @@ def main(argv: list[str] | None = None) -> int:
     except (
         BackendError,
         BriefError,
+        BriefReviewError,
         ConfigError,
         ContextError,
         EvaluationError,
