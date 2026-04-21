@@ -10,6 +10,8 @@ from ralph_loop_optimizer.backends.base import (
     BackendResult,
     CodingBackend,
 )
+from ralph_loop_optimizer.backends.claude import ClaudeCodeBackend
+from ralph_loop_optimizer.backends.codex import CodexBackend
 
 
 class BackendError(ValueError):
@@ -45,6 +47,8 @@ class FakeBackend:
 
 
 _BACKENDS: dict[str, CodingBackend] = {
+    "claude": ClaudeCodeBackend(),
+    "codex": CodexBackend(),
     "fake": FakeBackend(),
 }
 

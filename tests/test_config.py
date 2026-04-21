@@ -131,7 +131,7 @@ def test_validate_config_rejects_unregistered_backend(tmp_path: Path) -> None:
     config = OptimizerConfig(
         harness_path=_git_repo(tmp_path / "harness"),
         goal="Improve the benchmark score.",
-        backend="codex",
+        backend="missing",
     )
 
     with pytest.raises(ConfigError, match="backend must be one of"):

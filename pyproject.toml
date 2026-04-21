@@ -31,3 +31,6 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+markers = [
+  "real_cli: opt-in tests that invoke installed AI CLI backends"
+]

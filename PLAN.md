@@ -257,7 +257,7 @@ Verification:
 - Unit tests verify command construction without requiring the CLIs to be installed.
 - Integration tests for real CLIs are optional and skipped when binaries are missing.
 
-Status: Not finished.
+Status: Finished. The repository now has non-interactive Codex and Claude Code backend adapters, a shared subprocess runner with timeout and missing-binary handling, backend registry wiring, and tests for command construction plus subprocess invocation through fake CLI binaries.
 
 ## Task 8: Iteration Context Assembly [Importance: 9]
 
