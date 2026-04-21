@@ -130,4 +130,24 @@ Potential examples:
 
 ## Current Status
 
-This repository is at the early guideline and design stage. The README describes the intended user-facing behavior and repository direction. Implementation details, concrete commands, and runnable examples will be added as the source code is developed.
+This repository now has an initial Python package scaffold and CLI entry point. Product commands such as `init` and `run` are still planned.
+
+## Development
+
+Install the package with development dependencies:
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
+Run the test suite:
+
+```bash
+python -m pytest
+```
+
+Check the CLI help:
+
+```bash
+python -m ralph_loop_optimizer.cli --help
+```
