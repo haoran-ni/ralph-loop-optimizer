@@ -180,6 +180,7 @@ Generated files such as `RALPH_LOOP.md`, `ralph_loop_runs/`, and iteration commi
 
 Current examples:
 
+- `examples/toy-benchmark/`: a dependency-free deterministic benchmark where the optimizer improves a binary decision strategy by editing `strategy.py`.
 - `examples/cifar10-cnn/`: a PyTorch and torchvision CIFAR-10 harness where the optimizer improves a small CNN by editing `model.py` and `train_config.py`.
 
 ## Current Status

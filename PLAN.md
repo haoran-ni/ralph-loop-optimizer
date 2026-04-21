@@ -552,7 +552,7 @@ Verification:
 - The optimizer can initialize against each example and generate `RALPH_LOOP.md`.
 - At least one example is used by the end-to-end smoke test.
 
-Status: Not finished.
+Status: Finished. The repository now has `examples/toy-benchmark/`, a dependency-free deterministic harness with `README.md`, `AGENTS.md`, `strategy.py`, `evaluate.py`, and a small contract test. The example evaluation runs quickly, prints comparable text and JSON output, starts below its target score, documents safe edit boundaries, and is covered by tests that verify structure, determinism, parseability, and `ralph-loop init` compatibility against a copied Git harness.
 
 ## Task 16: End-To-End Smoke Test [Importance: 9]
 
