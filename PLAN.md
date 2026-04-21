@@ -311,7 +311,7 @@ Verification:
 - Evaluation output is saved even when the command fails.
 - A failing evaluation produces a recorded iteration result rather than losing context.
 
-Status: Not finished.
+Status: Finished. The repository now has command and manual evaluation execution, stdout/stderr/exit-code/timeout capture, optional output-file capture, plain-text result formatting, and focused evaluation tests.
 
 ## Task 10: Diff And Git Commit Handling [Importance: 9]
 
