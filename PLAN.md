@@ -108,7 +108,7 @@ Verification:
 - Config tests pass.
 - Invalid configuration errors are clear and actionable.
 
-Status: Not finished.
+Status: Finished. The repository now has an orchestration config dataclass, JSON load/write helpers, validation, and focused config tests.
 
 ## Task 3: Harness Repository Inspection [Importance: 10]
 
