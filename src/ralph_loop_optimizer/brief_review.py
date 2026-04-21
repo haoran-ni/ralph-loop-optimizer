@@ -8,7 +8,7 @@ from pathlib import Path
 from ralph_loop_optimizer.backends import BackendResult, get_backend
 from ralph_loop_optimizer.backends.base import BackendRequest, run_backend
 from ralph_loop_optimizer.brief import BRIEF_FILENAME
-from ralph_loop_optimizer.config import OptimizerConfig
+from ralph_loop_optimizer.config import ConfigError, OptimizerConfig, load_config
 from ralph_loop_optimizer.git import get_status
 from ralph_loop_optimizer.harness import HarnessSummary
 
@@ -141,6 +141,18 @@ def apply_brief_review_result(
         raise BriefReviewError("review result points at the wrong operating brief")
     if not result.brief_path.is_file():
         raise BriefReviewError(f"{BRIEF_FILENAME} must exist after review")
+    if result.config_path.is_symlink():
+        raise BriefReviewError("review config must not be a symlink")
+    if not result.config_path.is_file():
+        raise BriefReviewError("review config must exist after review")
+
+    try:
+        reviewed_config = load_config(result.config_path)
+    except ConfigError as exc:
+        raise BriefReviewError(f"review config is invalid after review: {exc}") from exc
+
+    if reviewed_config.harness_path.expanduser().resolve() != expected_brief.parent:
+        raise BriefReviewError("review config must still point at the reviewed harness")
     return result.brief_path
 
 

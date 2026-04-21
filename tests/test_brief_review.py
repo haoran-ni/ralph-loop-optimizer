@@ -118,6 +118,56 @@ def test_run_brief_review_detects_backend_target_edits(
         )
 
 
+def test_run_brief_review_rejects_invalid_config_after_review(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harness_path = _prepared_harness(tmp_path)
+    config = OptimizerConfig(harness_path=harness_path, goal="Improve the score.")
+    config_path = default_config_path(harness_path)
+    write_config(config, config_path)
+    _write(harness_path / "RALPH_LOOP.md", "# Brief\n")
+    monkeypatch.setattr(
+        "ralph_loop_optimizer.brief_review.get_backend",
+        lambda name: ConfigCorruptingBackend(),
+    )
+
+    with pytest.raises(BriefReviewError, match="review config is invalid"):
+        run_brief_review(
+            BriefReviewRequest(
+                config=config,
+                config_path=config_path,
+                summary=inspect_harness(harness_path),
+                brief="# Brief\n",
+            )
+        )
+
+
+def test_run_brief_review_rejects_deleted_config_after_review(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harness_path = _prepared_harness(tmp_path)
+    config = OptimizerConfig(harness_path=harness_path, goal="Improve the score.")
+    config_path = default_config_path(harness_path)
+    write_config(config, config_path)
+    _write(harness_path / "RALPH_LOOP.md", "# Brief\n")
+    monkeypatch.setattr(
+        "ralph_loop_optimizer.brief_review.get_backend",
+        lambda name: ConfigDeletingBackend(),
+    )
+
+    with pytest.raises(BriefReviewError, match="review config must exist"):
+        run_brief_review(
+            BriefReviewRequest(
+                config=config,
+                config_path=config_path,
+                summary=inspect_harness(harness_path),
+                brief="# Brief\n",
+            )
+        )
+
+
 class TargetEditingBackend:
     name = "fake"
 
@@ -126,6 +176,25 @@ class TargetEditingBackend:
             "VALUE = 3\n",
             encoding="utf-8",
         )
+        return BackendResult(backend_name=self.name, exit_code=0)
+
+
+class ConfigCorruptingBackend:
+    name = "fake"
+
+    def run_backend(self, request: BackendRequest) -> BackendResult:
+        (request.harness_path / "ralph-loop.json").write_text(
+            "not json\n",
+            encoding="utf-8",
+        )
+        return BackendResult(backend_name=self.name, exit_code=0)
+
+
+class ConfigDeletingBackend:
+    name = "fake"
+
+    def run_backend(self, request: BackendRequest) -> BackendResult:
+        (request.harness_path / "ralph-loop.json").unlink()
         return BackendResult(backend_name=self.name, exit_code=0)
 
 

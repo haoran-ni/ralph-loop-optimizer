@@ -117,6 +117,21 @@ def test_toy_benchmark_evaluation_is_deterministic_and_fast() -> None:
     assert "summary score=" in first.stdout
 
 
+def test_toy_benchmark_contract_tests_run_from_repo_root() -> None:
+    env = os.environ.copy()
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "examples/toy-benchmark/tests"],
+        cwd=EXAMPLES_DIR.parent,
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_toy_benchmark_can_be_initialized_as_harness(tmp_path: Path) -> None:
     harness_path = tmp_path / "toy-benchmark-harness"
     shutil.copytree(TOY_EXAMPLE_DIR, harness_path)
