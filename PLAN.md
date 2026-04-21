@@ -284,7 +284,7 @@ Verification:
 - Generated prompts include orchestration constraints and relevant harness evidence.
 - Generated prompts do not include hard-coded ML, poker, benchmark, or leaderboard assumptions.
 
-Status: Not finished.
+Status: Finished. The repository now has read-only operating brief, prior lesson, and latest evaluation loaders plus deterministic iteration prompt assembly with focused context tests.
 
 ## Task 9: Evaluation Runner [Importance: 10]
 
