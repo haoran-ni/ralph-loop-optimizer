@@ -1,11 +1,5 @@
 # Ralph Loop Optimizer Implementation Plan
 
-## Current Repository State
-
-- The repository currently has project guidance and documentation only: `AGENTS.md`, `README.md`, `LICENSE`, and this plan.
-- There is no package scaffold, source code, CLI, tests, optimizer loop, backend adapter, artifact writer, or example harness yet.
-- Task 1 is the first task that turns the repository from a docs-only project into an executable codebase.
-
 ## Implementation Goal
 
 Build a local CLI tool that runs an AI-assisted optimization loop over a user-provided harness repository.
@@ -458,6 +452,70 @@ Verification:
 
 - CLI tests cover every command's success and common failure paths.
 - Help output explains the explicit start boundary after initialization.
+
+Status: Not finished.
+
+## Task 14A: Guided Setup And Brief Consolidation [Importance: 10]
+
+Goals:
+
+- Make the required user workflow explicit and copy-paste runnable from the documentation.
+- Automate starter configuration creation so users do not have to manually write the JSON file required by `ralph-loop run --config PATH`.
+- Use a selected backend AI CLI before the optimization loop to help the user review, question, and consolidate `RALPH_LOOP.md`.
+- Preserve the explicit start boundary: pre-loop brief consolidation may edit `RALPH_LOOP.md` and configuration, but it must not modify optimization target files or start iterations.
+
+Proposed workflow:
+
+1. `ralph-loop init --harness PATH --goal TEXT [--evaluation-command TEXT]`
+   creates `RALPH_LOOP.md` and a starter config file such as `ralph-loop.json`.
+2. The user selects or edits the backend in the generated config, for example
+   `fake`, `codex`, or `claude`.
+3. A pre-loop review command uses the selected backend to inspect the harness,
+   ask the user clarification questions, and update `RALPH_LOOP.md` with the
+   agreed operating brief.
+4. The user explicitly starts optimization with
+   `ralph-loop run --config PATH`.
+
+Proposed commands:
+
+- `ralph-loop init --harness PATH --goal TEXT [--evaluation-command TEXT] [--backend NAME]`
+- `ralph-loop review --config PATH`
+- `ralph-loop run --config PATH`
+
+Proposed files and functions:
+
+- `src/ralph_loop_optimizer/config.py`
+  - `default_config_path(repo_path: Path) -> Path`
+  - `build_starter_config(...) -> OptimizerConfig`
+- `src/ralph_loop_optimizer/brief_review.py`
+  - `BriefReviewRequest`
+  - `BriefReviewResult`
+  - `build_brief_review_prompt(config: OptimizerConfig, summary: HarnessSummary, brief: str) -> str`
+  - `apply_brief_review_result(repo_path: Path, result: BriefReviewResult) -> Path`
+- `src/ralph_loop_optimizer/cli.py`
+  - `cmd_init(...)` writes both `RALPH_LOOP.md` and the starter config.
+  - `cmd_review(...)` invokes the configured backend for pre-loop brief review.
+
+Documentation requirements:
+
+- Show the complete sequence from example harness copy, Git initialization,
+  dependency installation, `ralph-loop init`, config review, brief review, and
+  `ralph-loop run`.
+- Explain that example folders are templates and must be copied into their own
+  harness Git repository before use.
+- Explain which values users are expected to edit, especially `backend`,
+  `max_iterations`, `evaluation_command`, and command timeouts.
+- Clearly distinguish pre-loop brief consolidation from optimization
+  iterations.
+
+Verification:
+
+- CLI tests confirm `init` writes a valid starter config without starting
+  optimization.
+- Tests confirm `review` can run with the fake backend and update or preserve
+  `RALPH_LOOP.md` without touching harness target files.
+- README commands are copy-paste runnable for the example harness workflow.
+- `run` continues to require an explicit user command after review completes.
 
 Status: Not finished.
 
