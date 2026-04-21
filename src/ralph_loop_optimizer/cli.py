@@ -11,8 +11,18 @@ from ralph_loop_optimizer.brief import (
     build_operating_brief,
     write_operating_brief,
 )
-from ralph_loop_optimizer.config import ConfigError, OptimizerConfig, validate_config
+from ralph_loop_optimizer.backends import BackendError
+from ralph_loop_optimizer.config import (
+    ConfigError,
+    OptimizerConfig,
+    load_config,
+    validate_config,
+)
+from ralph_loop_optimizer.context import ContextError
+from ralph_loop_optimizer.evaluation import EvaluationError
+from ralph_loop_optimizer.git import GitError
 from ralph_loop_optimizer.harness import HarnessError, inspect_harness
+from ralph_loop_optimizer.orchestrator import OrchestratorError, run_loop
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -59,6 +69,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     init_parser.set_defaults(func=cmd_init)
 
+    run_parser = subparsers.add_parser(
+        "run",
+        help="run a bounded optimization loop from a config file",
+        description=(
+            "Run optimization iterations from a JSON config file. "
+            "Run init and review RALPH_LOOP.md before using this command."
+        ),
+    )
+    run_parser.add_argument(
+        "--config",
+        required=True,
+        type=Path,
+        help="path to a Ralph Loop Optimizer JSON config file",
+    )
+    run_parser.set_defaults(func=cmd_run)
+
     return parser
 
 
@@ -81,6 +107,16 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_run(args: argparse.Namespace) -> int:
+    state = run_loop(load_config(args.config))
+    print(f"Run {state.run_paths.run_id} completed.")
+    print(f"Iterations completed: {len(state.completed_iterations)}")
+    if state.completed_iterations:
+        latest = state.completed_iterations[-1]
+        print(f"Latest commit: {latest.commit_hash}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -89,7 +125,16 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     try:
         return command(args)
-    except (BriefError, ConfigError, HarnessError) as exc:
+    except (
+        BackendError,
+        BriefError,
+        ConfigError,
+        ContextError,
+        EvaluationError,
+        GitError,
+        HarnessError,
+        OrchestratorError,
+    ) as exc:
         parser.exit(2, f"error: {exc}\n")
 
 

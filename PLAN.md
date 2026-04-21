@@ -399,7 +399,7 @@ Verification:
 - A fake end-to-end run creates the expected artifact tree and commit.
 - The loop stops at the configured iteration limit.
 
-Status: Not finished.
+Status: Finished. The repository now has a core orchestrator that initializes runs, builds iteration prompts, executes the selected backend, runs evaluation, writes prompt/evaluation/result/lesson/diff artifacts, commits completed iterations, exposes `ralph-loop run --config PATH`, and tests successful, failed-evaluation, failed-backend, and max-iteration paths with a fake backend.
 
 ## Task 13: Resume Behavior [Importance: 6]
 

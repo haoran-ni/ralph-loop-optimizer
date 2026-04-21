@@ -37,12 +37,16 @@ class IterationPaths:
     diff_path: Path
 
 
-def create_run_paths(repo_path: Path, run_id: str) -> RunPaths:
+def create_run_paths(
+    repo_path: Path,
+    run_id: str,
+    artifact_dir: Path = DEFAULT_RUN_ARTIFACT_DIR,
+) -> RunPaths:
     repo_path = repo_path.expanduser().resolve()
     assert_git_repository(repo_path)
     _validate_run_id(run_id)
 
-    artifact_dir = repo_path / DEFAULT_RUN_ARTIFACT_DIR
+    artifact_dir = _resolve_artifact_dir(repo_path, artifact_dir)
     artifact_dir.mkdir(parents=True, exist_ok=True)
     _assert_path_inside_repo(artifact_dir, repo_path)
 
@@ -114,6 +118,14 @@ def _validate_run_id(run_id: str) -> None:
         raise ArtifactError("run_id must be a single directory name")
     if run_id in {".", ".."}:
         raise ArtifactError("run_id must be a single directory name")
+
+
+def _resolve_artifact_dir(repo_path: Path, artifact_dir: Path) -> Path:
+    if artifact_dir.is_absolute():
+        raise ArtifactError("artifact_dir must be relative to the harness")
+    if artifact_dir == Path(".") or ".." in artifact_dir.parts:
+        raise ArtifactError("artifact_dir must stay inside the harness")
+    return repo_path / artifact_dir
 
 
 def _prepare_destination(path: Path, repo_path: Path) -> Path:

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import subprocess
+import shlex
+import sys
 from pathlib import Path
 
 import pytest
 
 from ralph_loop_optimizer.cli import main
+from ralph_loop_optimizer.config import OptimizerConfig, write_config
 
 
 def test_cli_help_exits_successfully() -> None:
@@ -44,9 +47,52 @@ def test_init_command_creates_brief_without_starting_run(
     assert _git_status(harness_path) == "?? RALPH_LOOP.md\n"
 
 
+def test_run_command_completes_configured_loop(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    harness_path = _git_repo(tmp_path / "harness")
+    _write(harness_path / "README.md", "# Harness\n")
+    _commit_all(harness_path)
+    _write(
+        harness_path / "RALPH_LOOP.md",
+        "# Ralph Loop Operating Brief\n\nTry one improvement.\n",
+    )
+    config_path = tmp_path / "ralph-loop.json"
+    write_config(
+        OptimizerConfig(
+            harness_path=harness_path,
+            goal="Improve the score.",
+            evaluation_command=_python_command("print('score=10')"),
+        ),
+        config_path,
+    )
+
+    exit_code = main(["run", "--config", str(config_path)])
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "Run run-" in output
+    assert "Iterations completed: 1" in output
+    assert "Latest commit:" in output
+    assert _git_status(harness_path) == ""
+
+
 def _git_repo(path: Path) -> Path:
     path.mkdir()
     subprocess.run(["git", "init"], cwd=path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.name", "Ralph Test"],
+        cwd=path,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "ralph-test@example.com"],
+        cwd=path,
+        check=True,
+        capture_output=True,
+    )
     return path
 
 
@@ -82,3 +128,7 @@ def _git_status(repo_path: Path) -> str:
 def _write(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
+
+
+def _python_command(code: str) -> str:
+    return f"{shlex.quote(sys.executable)} -c {shlex.quote(code)}"
