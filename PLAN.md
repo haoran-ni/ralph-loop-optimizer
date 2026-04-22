@@ -572,7 +572,7 @@ Verification:
 - The test passes from a clean checkout.
 - The test does not require external coding CLIs or network access.
 
-Status: Not finished.
+Status: Finished. The repository now has an end-to-end smoke test that copies the deterministic toy benchmark into a temporary Git harness, runs `ralph-loop init`, verifies the explicit start boundary, runs one fake-backend optimization iteration from the generated config, and confirms iteration artifacts, evaluation capture, lesson creation, experiment and artifact commits, and a clean final harness worktree.
 
 ## Task 17: Documentation For Human Users [Importance: 7]
 
