@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 from ralph_loop_optimizer import __version__
+from ralph_loop_optimizer.artifacts import RunPaths
 from ralph_loop_optimizer.brief import (
     BriefError,
     brief_exists,
@@ -17,7 +18,7 @@ from ralph_loop_optimizer.brief_review import (
     BriefReviewRequest,
     run_brief_review,
 )
-from ralph_loop_optimizer.backends import BackendError
+from ralph_loop_optimizer.backends import BackendError, list_backends
 from ralph_loop_optimizer.config import (
     ConfigError,
     build_starter_config,
@@ -27,10 +28,15 @@ from ralph_loop_optimizer.config import (
 )
 from ralph_loop_optimizer.context import ContextError, load_operating_brief
 from ralph_loop_optimizer.evaluation import EvaluationError
-from ralph_loop_optimizer.git import GitError
+from ralph_loop_optimizer.git import GitError, get_status
 from ralph_loop_optimizer.harness import HarnessError, inspect_harness
 from ralph_loop_optimizer.orchestrator import OrchestratorError, run_loop
-from ralph_loop_optimizer.resume import ResumeError, resume_loop
+from ralph_loop_optimizer.resume import (
+    ResumeError,
+    discover_runs,
+    load_run_state,
+    resume_loop,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -136,6 +142,33 @@ def build_parser() -> argparse.ArgumentParser:
     )
     resume_parser.set_defaults(func=cmd_resume)
 
+    status_parser = subparsers.add_parser(
+        "status",
+        help="inspect a harness and recorded optimization runs",
+        description=(
+            "Inspect a harness repository, starter files, worktree status, "
+            "and recorded Ralph Loop runs without starting optimization."
+        ),
+    )
+    status_parser.add_argument(
+        "--harness",
+        required=True,
+        type=Path,
+        help="path to the harness Git repository root",
+    )
+    status_parser.add_argument(
+        "--run-id",
+        help="optional run id under ralph_loop_runs to inspect in detail",
+    )
+    status_parser.set_defaults(func=cmd_status)
+
+    backends_parser = subparsers.add_parser(
+        "backends",
+        help="list supported coding backends",
+        description="List the coding backends accepted by optimizer configs.",
+    )
+    backends_parser.set_defaults(func=cmd_backends)
+
     return parser
 
 
@@ -224,6 +257,84 @@ def cmd_resume(args: argparse.Namespace) -> int:
         print(f"Latest experiment commit: {latest.commit_hash}")
         print(f"Latest artifact commit: {latest.artifact_commit_hash}")
     return 0
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    repo_path = args.harness.expanduser().resolve()
+    inspect_harness(repo_path)
+    status = get_status(repo_path)
+    config_path = default_config_path(repo_path)
+    runs = discover_runs(repo_path)
+
+    print(f"Harness: {repo_path}")
+    print(f"Git worktree: {'dirty' if status.is_dirty else 'clean'}")
+    if status.is_dirty:
+        print("Uncommitted changes:")
+        for entry in status.entries:
+            print(f"- {entry}")
+    print(f"RALPH_LOOP.md: {'present' if brief_exists(repo_path) else 'missing'}")
+    config_state = "present" if config_path.is_file() else "missing"
+    print(f"{config_path.name}: {config_state}")
+
+    if args.run_id is not None:
+        run_paths = _select_run(runs, args.run_id)
+        return _print_run_detail(run_paths)
+
+    print(f"Runs discovered: {len(runs)}")
+    for run_paths in runs:
+        print(_format_run_summary(run_paths))
+    return 0
+
+
+def cmd_backends(args: argparse.Namespace) -> int:
+    del args
+    backends = list_backends()
+    real_backends = [name for name in backends if name != "fake"]
+    print("Real coding backends:")
+    for name in real_backends:
+        print(f"- {name}")
+    if "fake" in backends:
+        print("Test backend:")
+        print("- fake")
+    return 0
+
+
+def _select_run(runs: list[RunPaths], run_id: str) -> RunPaths:
+    for run_paths in runs:
+        if run_paths.run_id == run_id:
+            return run_paths
+    raise ResumeError(f"run does not exist: {run_id}")
+
+
+def _print_run_detail(run_paths: RunPaths) -> int:
+    try:
+        state = load_run_state(run_paths)
+    except ResumeError as exc:
+        print(f"Run: {run_paths.run_id}")
+        print("Run status: invalid")
+        print(f"Detail: {exc}")
+        return 1
+
+    print(f"Run: {state.run_paths.run_id}")
+    print("Run status: valid")
+    print(f"Run config: {state.run_paths.config_path}")
+    print(f"Completed iterations: {len(state.completed_iterations)}")
+    print(f"Next iteration: {state.next_iteration_number}")
+    print(f"Maximum iterations: {state.config.max_iterations}")
+    return 0
+
+
+def _format_run_summary(run_paths: RunPaths) -> str:
+    try:
+        state = load_run_state(run_paths)
+    except ResumeError as exc:
+        return f"- {run_paths.run_id}: invalid ({exc})"
+
+    completed = len(state.completed_iterations)
+    return (
+        f"- {state.run_paths.run_id}: {completed} completed iteration(s), "
+        f"next {state.next_iteration_number} of {state.config.max_iterations}"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

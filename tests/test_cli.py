@@ -174,6 +174,93 @@ def test_run_command_accepts_generated_init_config(
     assert _git_status(harness_path) == ""
 
 
+def test_backends_command_lists_real_and_test_backends(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = main(["backends"])
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "Real coding backends:" in output
+    assert "- claude" in output
+    assert "- codex" in output
+    assert "Test backend:" in output
+    assert "- fake" in output
+    assert "opencode" not in output
+
+
+def test_status_command_reports_harness_without_starting_run(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    harness_path = _git_repo(tmp_path / "harness")
+    _write(harness_path / "README.md", "# Harness\n")
+    _commit_all(harness_path)
+    main(
+        [
+            "init",
+            "--harness",
+            str(harness_path),
+            "--goal",
+            "Improve the score.",
+            "--evaluation-command",
+            _python_command("print('score=10')"),
+        ]
+    )
+    capsys.readouterr()
+
+    exit_code = main(["status", "--harness", str(harness_path)])
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert f"Harness: {harness_path.resolve()}" in output
+    assert "Git worktree: dirty" in output
+    assert "- ?? RALPH_LOOP.md" in output
+    assert "- ?? ralph-loop.json" in output
+    assert "RALPH_LOOP.md: present" in output
+    assert "ralph-loop.json: present" in output
+    assert "Runs discovered: 0" in output
+    assert not (harness_path / "ralph_loop_runs").exists()
+
+
+def test_status_command_reports_selected_run(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    harness_path = _git_repo(tmp_path / "harness")
+    _write(harness_path / "README.md", "# Harness\n")
+    _commit_all(harness_path)
+    _write(
+        harness_path / "RALPH_LOOP.md",
+        "# Ralph Loop Operating Brief\n\nTry one improvement.\n",
+    )
+    config_path = tmp_path / "ralph-loop.json"
+    write_config(
+        OptimizerConfig(
+            harness_path=harness_path,
+            goal="Improve the score.",
+            evaluation_command=_python_command("print('score=10')"),
+        ),
+        config_path,
+    )
+    main(["run", "--config", str(config_path)])
+    capsys.readouterr()
+    run_id = next((harness_path / "ralph_loop_runs").iterdir()).name
+
+    exit_code = main(
+        ["status", "--harness", str(harness_path), "--run-id", run_id]
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "Git worktree: clean" in output
+    assert f"Run: {run_id}" in output
+    assert "Run status: valid" in output
+    assert "Completed iterations: 1" in output
+    assert "Next iteration: 2" in output
+    assert "Maximum iterations: 1" in output
+
+
 def _git_repo(path: Path) -> Path:
     path.mkdir()
     subprocess.run(["git", "init"], cwd=path, check=True, capture_output=True)

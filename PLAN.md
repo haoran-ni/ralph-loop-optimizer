@@ -453,7 +453,11 @@ Verification:
 - CLI tests cover every command's success and common failure paths.
 - Help output explains the explicit start boundary after initialization.
 
-Status: Not finished.
+Status: Finished. The repository now exposes all planned user-facing CLI
+commands: `init`, `review`, `run`, `resume`, `status`, and `backends`.
+The `status` command performs read-only harness and run inspection, the
+`backends` command lists Codex, Claude Code, and the deterministic fake test
+backend, and CLI tests cover the new command behavior.
 
 ## Task 14A: Guided Setup And Brief Consolidation [Importance: 10]
 
