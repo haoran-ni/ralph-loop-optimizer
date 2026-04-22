@@ -421,7 +421,7 @@ Verification:
 - Resume continues from the next iteration without replacing previous records.
 - Resume refuses ambiguous or corrupted state with a clear message.
 
-Status: Not finished.
+Status: Finished. The repository now has resume helpers that discover existing runs, validate complete artifact state, detect partial or missing iteration records, reconstruct run state from `ralph_loop_runs/<run_id>/`, continue from the next safe iteration, reject dirty harness worktrees before resuming, and expose `ralph-loop resume --harness PATH --run-id ID` with focused resume tests.
 
 ## Task 14: User-Facing CLI Commands [Importance: 9]
 

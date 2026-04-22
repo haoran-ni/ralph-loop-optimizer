@@ -30,6 +30,7 @@ from ralph_loop_optimizer.evaluation import EvaluationError
 from ralph_loop_optimizer.git import GitError
 from ralph_loop_optimizer.harness import HarnessError, inspect_harness
 from ralph_loop_optimizer.orchestrator import OrchestratorError, run_loop
+from ralph_loop_optimizer.resume import ResumeError, resume_loop
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -114,6 +115,27 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.set_defaults(func=cmd_run)
 
+    resume_parser = subparsers.add_parser(
+        "resume",
+        help="resume an existing optimization run",
+        description=(
+            "Resume an existing run from ralph_loop_runs/<run_id>. "
+            "The run state must be complete and the harness worktree must be clean."
+        ),
+    )
+    resume_parser.add_argument(
+        "--harness",
+        required=True,
+        type=Path,
+        help="path to the harness Git repository root",
+    )
+    resume_parser.add_argument(
+        "--run-id",
+        required=True,
+        help="run id under ralph_loop_runs",
+    )
+    resume_parser.set_defaults(func=cmd_resume)
+
     return parser
 
 
@@ -193,6 +215,17 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_resume(args: argparse.Namespace) -> int:
+    state = resume_loop(args.harness, args.run_id)
+    print(f"Run {state.run_paths.run_id} resumed.")
+    print(f"Iterations completed: {len(state.completed_iterations)}")
+    if state.completed_iterations:
+        latest = state.completed_iterations[-1]
+        print(f"Latest experiment commit: {latest.commit_hash}")
+        print(f"Latest artifact commit: {latest.artifact_commit_hash}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -211,6 +244,7 @@ def main(argv: list[str] | None = None) -> int:
         GitError,
         HarnessError,
         OrchestratorError,
+        ResumeError,
     ) as exc:
         parser.exit(2, f"error: {exc}\n")
 
