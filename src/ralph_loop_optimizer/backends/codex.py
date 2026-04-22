@@ -18,6 +18,8 @@ class CodexBackend:
             cwd=request.harness_path,
             timeout_seconds=request.timeout_seconds,
             input_text=request.prompt,
+            stdout_callback=request.stdout_callback,
+            stderr_callback=request.stderr_callback,
         )
         return BackendResult(
             backend_name=self.name,
@@ -30,7 +32,7 @@ class CodexBackend:
 
 
 def build_codex_command(request: BackendRequest) -> list[str]:
-    return [
+    command = [
         "codex",
         "exec",
         "--cd",
@@ -38,5 +40,8 @@ def build_codex_command(request: BackendRequest) -> list[str]:
         "--full-auto",
         "--color",
         "never",
-        "-",
     ]
+    if request.stream_output:
+        command.append("--json")
+    command.append("-")
+    return command

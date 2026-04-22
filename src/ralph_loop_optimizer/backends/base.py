@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol
+from typing import Callable, Protocol
+
+
+StreamCallback = Callable[[str], None]
 
 
 @dataclass(frozen=True)
@@ -16,6 +19,9 @@ class BackendRequest:
     prior_lessons: tuple[str, ...] = ()
     latest_evaluation: str | None = None
     timeout_seconds: int | None = None
+    stream_output: bool = False
+    stdout_callback: StreamCallback | None = None
+    stderr_callback: StreamCallback | None = None
 
 
 @dataclass(frozen=True)

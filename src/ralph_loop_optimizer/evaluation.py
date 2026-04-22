@@ -5,9 +5,11 @@ from __future__ import annotations
 import os
 import signal
 import subprocess
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from time import perf_counter
+from typing import Callable
 
 from ralph_loop_optimizer.config import OptimizerConfig
 from ralph_loop_optimizer.harness import assert_git_repository
@@ -23,6 +25,8 @@ class EvaluationRequest:
     evaluation_command: str | None
     timeout_seconds: int | None = None
     output_paths: tuple[Path, ...] = ()
+    stdout_callback: Callable[[str], None] | None = None
+    stderr_callback: Callable[[str], None] | None = None
 
 
 @dataclass(frozen=True)
@@ -76,6 +80,18 @@ def run_evaluation(request: EvaluationRequest) -> EvaluationResult:
         text=True,
         **_process_group_kwargs(),
     )
+    if request.stdout_callback is not None or request.stderr_callback is not None:
+        return _communicate_streaming(
+            process,
+            command,
+            request.timeout_seconds,
+            started_at,
+            output_paths,
+            harness_path,
+            request.stdout_callback,
+            request.stderr_callback,
+        )
+
     try:
         stdout, stderr = process.communicate(timeout=request.timeout_seconds)
     except subprocess.TimeoutExpired as exc:
@@ -99,6 +115,71 @@ def run_evaluation(request: EvaluationRequest) -> EvaluationResult:
         elapsed_seconds=perf_counter() - started_at,
         output_files=_read_output_files(output_paths, harness_path),
     )
+
+
+def _communicate_streaming(
+    process: subprocess.Popen[str],
+    command: str,
+    timeout_seconds: int | None,
+    started_at: float,
+    output_paths: tuple[Path, ...],
+    harness_path: Path,
+    stdout_callback: Callable[[str], None] | None,
+    stderr_callback: Callable[[str], None] | None,
+) -> EvaluationResult:
+    stdout_chunks: list[str] = []
+    stderr_chunks: list[str] = []
+    threads = [
+        threading.Thread(
+            target=_read_stream,
+            args=(process.stdout, stdout_chunks, stdout_callback),
+            daemon=True,
+        ),
+        threading.Thread(
+            target=_read_stream,
+            args=(process.stderr, stderr_chunks, stderr_callback),
+            daemon=True,
+        ),
+    ]
+    for thread in threads:
+        thread.start()
+
+    try:
+        exit_code = process.wait(timeout=timeout_seconds)
+        timed_out = False
+    except subprocess.TimeoutExpired:
+        _kill_process_group(process)
+        exit_code = None
+        timed_out = True
+
+    for thread in threads:
+        thread.join(timeout=1)
+
+    return EvaluationResult(
+        evaluation_command=command,
+        exit_code=exit_code,
+        stdout="".join(stdout_chunks),
+        stderr="".join(stderr_chunks),
+        elapsed_seconds=perf_counter() - started_at,
+        timed_out=timed_out,
+        output_files=_read_output_files(output_paths, harness_path),
+    )
+
+
+def _read_stream(
+    stream: object,
+    chunks: list[str],
+    callback: Callable[[str], None] | None,
+) -> None:
+    if stream is None:
+        return
+    while True:
+        chunk = stream.readline()
+        if chunk == "":
+            break
+        chunks.append(chunk)
+        if callback is not None:
+            callback(chunk)
 
 
 def format_evaluation_result(result: EvaluationResult) -> str:

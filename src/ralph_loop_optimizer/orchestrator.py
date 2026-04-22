@@ -37,6 +37,7 @@ from ralph_loop_optimizer.evaluation import (
 from ralph_loop_optimizer.git import commit, get_diff, get_status, stage_paths
 from ralph_loop_optimizer.harness import get_worktree_status, read_harness_instructions
 from ralph_loop_optimizer.lessons import LessonEvidence, distill_lesson
+from ralph_loop_optimizer.progress import ProgressReporter, relative_path
 
 
 class OrchestratorError(ValueError):
@@ -72,9 +73,15 @@ class RunState:
         return len(self.completed_iterations) + 1
 
 
-def initialize_run(config: OptimizerConfig) -> RunState:
+def initialize_run(
+    config: OptimizerConfig,
+    *,
+    progress: ProgressReporter | None = None,
+) -> RunState:
     validate_config(config)
     repo_path = config.harness_path.expanduser().resolve()
+    if progress is not None:
+        progress.status(f"Preparing harness: {repo_path}")
     _assert_starting_worktree_safe(repo_path)
     load_operating_brief(repo_path)
 
@@ -83,15 +90,35 @@ def initialize_run(config: OptimizerConfig) -> RunState:
         _new_run_id(repo_path, config.run_artifact_dir),
         config.run_artifact_dir,
     )
+    if progress is not None:
+        progress.status(f"Run id: {run_paths.run_id}")
+        progress.status(
+            "Run artifacts: "
+            f"{relative_path(run_paths.run_dir, run_paths.repo_path)}"
+        )
     return RunState(config=replace(config, harness_path=repo_path), run_paths=run_paths)
 
 
-def run_iteration(state: RunState) -> IterationRecord:
+def run_iteration(
+    state: RunState,
+    *,
+    progress: ProgressReporter | None = None,
+) -> IterationRecord:
     iteration_number = state.next_iteration_number
+    if progress is not None:
+        progress.status(
+            f"Starting iteration {iteration_number:03d} "
+            f"of {state.config.max_iterations}"
+        )
     context = _load_iteration_context(state)
     prompt = build_iteration_prompt(state.config, context)
+    if progress is not None:
+        progress.block(f"Prompt for iteration {iteration_number:03d}", prompt)
 
     backend = get_backend(state.config.backend)
+    if progress is not None:
+        progress.status(f"Calling backend: {backend.name}")
+        progress.status("Waiting for backend output or events...")
     backend_result = run_backend(
         backend,
         BackendRequest(
@@ -102,17 +129,59 @@ def run_iteration(state: RunState) -> IterationRecord:
             prior_lessons=context.prior_lessons,
             latest_evaluation=context.latest_evaluation,
             timeout_seconds=state.config.command_timeout_seconds,
+            stream_output=progress is not None,
+            stdout_callback=(
+                progress.backend_stdout_callback(backend.name)
+                if progress is not None
+                else None
+            ),
+            stderr_callback=(
+                progress.backend_stderr_callback(backend.name)
+                if progress is not None
+                else None
+            ),
         ),
     )
+    if progress is not None:
+        progress.status(
+            f"Backend finished: exit code {backend_result.exit_code}, "
+            f"elapsed {_format_elapsed(backend_result.elapsed_seconds)}"
+        )
+
+    if progress is not None:
+        if state.config.evaluation_command is None:
+            progress.status("No evaluation command configured; recording manual mode")
+        else:
+            progress.status(
+                f"Evaluating harness: {state.config.evaluation_command.strip()}"
+            )
     evaluation_result = run_evaluation(
         EvaluationRequest(
             harness_path=state.run_paths.repo_path,
             evaluation_command=state.config.evaluation_command,
             timeout_seconds=state.config.command_timeout_seconds,
+            stdout_callback=(
+                progress.evaluation_stdout_callback()
+                if progress is not None
+                else None
+            ),
+            stderr_callback=(
+                progress.evaluation_stderr_callback()
+                if progress is not None
+                else None
+            ),
         )
     )
+    if progress is not None:
+        progress.status(
+            "Evaluation finished: "
+            f"{'succeeded' if evaluation_result.succeeded else 'not successful'}, "
+            f"elapsed {evaluation_result.elapsed_seconds:.3f}s"
+        )
     evaluation_text = format_evaluation_result(evaluation_result)
 
+    if progress is not None:
+        progress.status("Capturing diff and committing experiment")
     stage_paths(state.run_paths.repo_path, [Path(".")])
     captured_diff = get_diff(state.run_paths.repo_path)
     experiment_commit_hash = commit(
@@ -120,8 +189,15 @@ def run_iteration(state: RunState) -> IterationRecord:
         f"ralph-loop iteration {iteration_number:03d} experiment",
         allow_empty=True,
     )
+    if progress is not None:
+        progress.status(f"Experiment commit: {experiment_commit_hash}")
 
     iteration_paths = create_iteration_paths(state.run_paths, iteration_number)
+    if progress is not None:
+        progress.status(
+            "Writing iteration artifacts: "
+            f"{relative_path(iteration_paths.iteration_dir, state.run_paths.repo_path)}"
+        )
     _write_iteration_artifacts(
         state,
         iteration_paths,
@@ -133,11 +209,16 @@ def run_iteration(state: RunState) -> IterationRecord:
         experiment_commit_hash,
     )
 
+    if progress is not None:
+        progress.status("Committing iteration artifacts")
     stage_paths(state.run_paths.repo_path, [Path(".")])
     artifact_commit_hash = commit(
         state.run_paths.repo_path,
         f"ralph-loop iteration {iteration_number:03d} artifacts",
     )
+    if progress is not None:
+        progress.status(f"Artifact commit: {artifact_commit_hash}")
+        progress.status(f"Completed iteration {iteration_number:03d}")
 
     return IterationRecord(
         iteration_number=iteration_number,
@@ -153,14 +234,22 @@ def run_iteration(state: RunState) -> IterationRecord:
     )
 
 
-def run_loop(config: OptimizerConfig) -> RunState:
-    state = initialize_run(config)
+def run_loop(
+    config: OptimizerConfig,
+    *,
+    progress: ProgressReporter | None = None,
+) -> RunState:
+    if progress is not None:
+        progress.status("Starting optimization run")
+    state = initialize_run(config, progress=progress)
     while should_continue(state):
-        record = run_iteration(state)
+        record = run_iteration(state, progress=progress)
         state = replace(
             state,
             completed_iterations=(*state.completed_iterations, record),
         )
+    if progress is not None:
+        progress.status("Optimization run completed")
     return state
 
 
@@ -327,6 +416,12 @@ def _format_optional_exit_code(exit_code: int | None) -> str:
     if exit_code is None:
         return "not available"
     return str(exit_code)
+
+
+def _format_elapsed(elapsed_seconds: float | None) -> str:
+    if elapsed_seconds is None:
+        return "not available"
+    return f"{elapsed_seconds:.3f}s"
 
 
 def _format_text_block(content: str) -> list[str]:

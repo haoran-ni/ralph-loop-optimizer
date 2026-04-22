@@ -31,6 +31,7 @@ from ralph_loop_optimizer.evaluation import EvaluationError
 from ralph_loop_optimizer.git import GitError, get_status
 from ralph_loop_optimizer.harness import HarnessError, inspect_harness
 from ralph_loop_optimizer.orchestrator import OrchestratorError, run_loop
+from ralph_loop_optimizer.progress import ProgressReporter
 from ralph_loop_optimizer.resume import (
     ResumeError,
     discover_runs,
@@ -238,7 +239,7 @@ def cmd_review(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    state = run_loop(load_config(args.config))
+    state = run_loop(load_config(args.config), progress=ProgressReporter())
     print(f"Run {state.run_paths.run_id} completed.")
     print(f"Iterations completed: {len(state.completed_iterations)}")
     if state.completed_iterations:

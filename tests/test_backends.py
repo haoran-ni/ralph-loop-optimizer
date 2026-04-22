@@ -83,6 +83,26 @@ def test_build_codex_command_uses_noninteractive_exec(tmp_path: Path) -> None:
     ]
 
 
+def test_build_codex_command_uses_json_events_when_streaming(tmp_path: Path) -> None:
+    request = BackendRequest(
+        harness_path=tmp_path,
+        prompt="Try one change.",
+        stream_output=True,
+    )
+
+    assert build_codex_command(request) == [
+        "codex",
+        "exec",
+        "--cd",
+        str(tmp_path),
+        "--full-auto",
+        "--color",
+        "never",
+        "--json",
+        "-",
+    ]
+
+
 def test_build_claude_command_uses_print_mode(tmp_path: Path) -> None:
     request = BackendRequest(harness_path=tmp_path, prompt="Try one change.")
 
@@ -95,6 +115,29 @@ def test_build_claude_command_uses_print_mode(tmp_path: Path) -> None:
         "text",
         "--output-format",
         "text",
+    ]
+
+
+def test_build_claude_command_uses_stream_json_when_streaming(
+    tmp_path: Path,
+) -> None:
+    request = BackendRequest(
+        harness_path=tmp_path,
+        prompt="Try one change.",
+        stream_output=True,
+    )
+
+    assert build_claude_command(request) == [
+        "claude",
+        "--print",
+        "--permission-mode",
+        "acceptEdits",
+        "--input-format",
+        "text",
+        "--output-format",
+        "stream-json",
+        "--include-partial-messages",
+        "--include-hook-events",
     ]
 
 

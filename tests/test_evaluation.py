@@ -42,6 +42,32 @@ def test_run_evaluation_captures_successful_command(tmp_path: Path) -> None:
     assert result.elapsed_seconds >= 0
 
 
+def test_run_evaluation_streams_output_while_capturing(tmp_path: Path) -> None:
+    harness_path = _git_repo(tmp_path / "harness")
+    command = _python_command(
+        "import sys; print('score=10', flush=True); "
+        "print('note', file=sys.stderr, flush=True)"
+    )
+    stdout_chunks: list[str] = []
+    stderr_chunks: list[str] = []
+
+    result = run_evaluation(
+        EvaluationRequest(
+            harness_path=harness_path,
+            evaluation_command=command,
+            timeout_seconds=5,
+            stdout_callback=stdout_chunks.append,
+            stderr_callback=stderr_chunks.append,
+        )
+    )
+
+    assert result.exit_code == 0
+    assert result.stdout == "score=10\n"
+    assert result.stderr == "note\n"
+    assert stdout_chunks == ["score=10\n"]
+    assert stderr_chunks == ["note\n"]
+
+
 def test_run_evaluation_captures_failing_command(tmp_path: Path) -> None:
     harness_path = _git_repo(tmp_path / "harness")
     command = _python_command(

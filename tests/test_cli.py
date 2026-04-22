@@ -139,6 +139,13 @@ def test_run_command_completes_configured_loop(
 
     output = capsys.readouterr().out
     assert exit_code == 0
+    assert "[ralph-loop] Starting optimization run" in output
+    assert "[ralph-loop] Starting iteration 001 of 1" in output
+    assert "[ralph-loop] Prompt for iteration 001" in output
+    assert "Improve the score." in output
+    assert "[ralph-loop] Calling backend: fake" in output
+    assert "[ralph-loop] Evaluating harness:" in output
+    assert "[evaluation] score=10" in output
     assert "Run run-" in output
     assert "Iterations completed: 1" in output
     assert "Latest experiment commit:" in output

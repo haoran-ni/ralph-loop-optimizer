@@ -18,6 +18,8 @@ class ClaudeCodeBackend:
             cwd=request.harness_path,
             timeout_seconds=request.timeout_seconds,
             input_text=request.prompt,
+            stdout_callback=request.stdout_callback,
+            stderr_callback=request.stderr_callback,
         )
         return BackendResult(
             backend_name=self.name,
@@ -30,7 +32,7 @@ class ClaudeCodeBackend:
 
 
 def build_claude_command(request: BackendRequest) -> list[str]:
-    return [
+    command = [
         "claude",
         "--print",
         "--permission-mode",
@@ -38,5 +40,8 @@ def build_claude_command(request: BackendRequest) -> list[str]:
         "--input-format",
         "text",
         "--output-format",
-        "text",
+        "stream-json" if request.stream_output else "text",
     ]
+    if request.stream_output:
+        command.extend(["--include-partial-messages", "--include-hook-events"])
+    return command

@@ -32,6 +32,35 @@ def test_run_command_captures_stdout_stderr_and_stdin(tmp_path: Path) -> None:
     assert result.elapsed_seconds >= 0
 
 
+def test_run_command_streams_stdout_stderr_while_capturing(
+    tmp_path: Path,
+) -> None:
+    stdout_chunks: list[str] = []
+    stderr_chunks: list[str] = []
+
+    result = run_command(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                "print('out', flush=True); "
+                "print('err', file=sys.stderr, flush=True)"
+            ),
+        ],
+        cwd=tmp_path,
+        timeout_seconds=5,
+        stdout_callback=stdout_chunks.append,
+        stderr_callback=stderr_chunks.append,
+    )
+
+    assert result.exit_code == 0
+    assert result.stdout == "out\n"
+    assert result.stderr == "err\n"
+    assert stdout_chunks == ["out\n"]
+    assert stderr_chunks == ["err\n"]
+
+
 def test_run_command_records_missing_binary(tmp_path: Path) -> None:
     result = run_command(
         ["definitely-missing-ralph-loop-command"],
