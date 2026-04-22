@@ -600,7 +600,11 @@ Verification:
 - README commands are copy-paste runnable.
 - Documentation preserves the distinction between human-facing usage and agent-facing development guidance.
 
-Status: Not finished.
+Status: Finished. `README.md` now documents installation from source, the
+implemented command surface, the explicit initialization/review/run boundary,
+generated artifacts, starter configuration fields, supported backends, the
+toy-benchmark quick start, and real-CLI test commands. The documented toy
+workflow was verified against a copied temporary harness.
 
 ## Task 18: Agent-Facing Development Guidance Maintenance [Importance: 6]
 

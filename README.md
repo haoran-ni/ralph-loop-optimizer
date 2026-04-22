@@ -20,7 +20,7 @@ Ralph Loop Optimizer owns the orchestration loop:
 - Read the user's optimization goal.
 - Inspect the harness repository.
 - Build an iteration brief.
-- Run a selected coding CLI, such as Codex, opencode, or Claude Code.
+- Run a selected coding CLI, such as Codex or Claude Code.
 - Run the harness evaluation.
 - Save results, logs, diffs, and lessons.
 - Commit experiments so they can be retrieved later.
@@ -77,6 +77,49 @@ Optimization should not begin until the user explicitly confirms that the loop s
 
 The pre-loop review command is still before the start boundary. It may update `RALPH_LOOP.md` and the starter config, but it must not optimize target source files or create iteration artifacts.
 
+## Command Reference
+
+Inspect a harness and write the starter files without starting optimization:
+
+```bash
+ralph-loop init \
+  --harness /path/to/harness \
+  --goal "Describe what should improve." \
+  --evaluation-command "python evaluate.py" \
+  --backend fake
+```
+
+Ask the configured backend to review and consolidate `RALPH_LOOP.md` before the run starts:
+
+```bash
+ralph-loop review --config /path/to/harness/ralph-loop.json
+```
+
+Start the optimization loop explicitly:
+
+```bash
+ralph-loop run --config /path/to/harness/ralph-loop.json
+```
+
+Resume a recorded run:
+
+```bash
+ralph-loop resume --harness /path/to/harness --run-id run-YYYYMMDDTHHMMSSffffffZ
+```
+
+Inspect a harness and recorded runs without starting optimization:
+
+```bash
+ralph-loop status --harness /path/to/harness
+ralph-loop status --harness /path/to/harness --run-id run-YYYYMMDDTHHMMSSffffffZ
+```
+
+List configured backends:
+
+```bash
+ralph-loop backends
+```
+
 ## Generated Artifacts
 
 Ralph Loop Optimizer is expected to create visible run artifacts inside the harness repository.
@@ -107,17 +150,18 @@ The exact filenames and formats may evolve, but the purpose should remain stable
 
 ## Configuration
 
-Ralph Loop Optimizer should support configuration for orchestration concerns such as:
+`ralph-loop init` writes a starter `ralph-loop.json` in the harness repository. Review it before running optimization.
 
-- Harness repository path.
-- User optimization prompt.
-- Coding CLI backend to use.
-- Maximum number of iterations.
-- Evaluation command or evaluation instructions.
-- Stopping condition or target performance.
-- Output directory for run artifacts.
-- Resume behavior.
-- Optional command timeouts.
+Common fields:
+
+- `harness_path`: absolute path to the harness Git repository root.
+- `goal`: the optimization objective.
+- `backend`: `fake`, `codex`, or `claude`.
+- `max_iterations`: maximum number of optimization attempts for `run` or `resume`.
+- `evaluation_command`: optional command to run after each backend attempt. If omitted, the iteration records that manual evaluation is required.
+- `run_artifact_dir`: relative directory for run history, usually `ralph_loop_runs`.
+- `command_timeout_seconds`: optional timeout for backend and evaluation commands.
+- `resume_behavior`: current resume policy setting.
 
 Domain-specific configuration should usually stay inside the harness. For example, model search spaces, poker simulation settings, or benchmark-specific parameters belong with the harness unless the optimizer needs them to orchestrate the loop.
 
@@ -127,23 +171,34 @@ This repository includes example harness folders that demonstrate how external s
 
 Example harness folders in this repository are templates. The optimizer requires the harness path itself to be a local Git repository root, so run an example by copying it into a separate directory and initializing Git there. Do not point `--harness` directly at a subfolder inside this optimizer repository.
 
-For example:
+## Quick Start With Toy Benchmark
+
+Install the package from this repository:
 
 ```bash
-cp -R examples/cifar10-cnn /tmp/cifar10-cnn-harness
-cd /tmp/cifar10-cnn-harness
+python -m pip install -e ".[dev]"
+```
+
+Copy the deterministic toy benchmark into its own Git repository:
+
+```bash
+HARNESS_DIR="$(mktemp -d)/toy-benchmark-harness"
+cp -R examples/toy-benchmark "$HARNESS_DIR"
+cd "$HARNESS_DIR"
 git init
 git add .
-git commit -m "initial CIFAR-10 harness"
-python -m pip install -r requirements.txt
+git -c user.name="Ralph Loop Demo" \
+  -c user.email="ralph-loop-demo@example.com" \
+  commit -m "initial toy benchmark harness"
+python evaluate.py
 ```
 
 Then initialize the optimizer against the copied harness repository:
 
 ```bash
 ralph-loop init \
-  --harness /tmp/cifar10-cnn-harness \
-  --goal "Improve the CIFAR-10 test accuracy of the CNN model." \
+  --harness "$HARNESS_DIR" \
+  --goal "Improve the deterministic toy benchmark score." \
   --evaluation-command "python evaluate.py" \
   --backend fake
 ```
@@ -151,21 +206,28 @@ ralph-loop init \
 This writes:
 
 ```text
-/tmp/cifar10-cnn-harness/RALPH_LOOP.md
-/tmp/cifar10-cnn-harness/ralph-loop.json
+$HARNESS_DIR/RALPH_LOOP.md
+$HARNESS_DIR/ralph-loop.json
 ```
 
-Review and edit `/tmp/cifar10-cnn-harness/ralph-loop.json` before starting. The most common fields to change are:
+Review and edit `$HARNESS_DIR/ralph-loop.json` before starting. The most common fields to change are:
 
 - `backend`: use `fake` for deterministic dry runs, or `codex` / `claude` when those CLIs are installed.
 - `max_iterations`: the maximum number of optimization attempts.
 - `evaluation_command`: the harness command that produces performance feedback.
 - `command_timeout_seconds`: optional timeout for backend and evaluation commands.
 
+Check the pre-run state:
+
+```bash
+ralph-loop status --harness "$HARNESS_DIR"
+ralph-loop backends
+```
+
 Optionally ask the configured backend to consolidate the operating brief before the run starts:
 
 ```bash
-ralph-loop review --config /tmp/cifar10-cnn-harness/ralph-loop.json
+ralph-loop review --config "$HARNESS_DIR/ralph-loop.json"
 ```
 
 The review step does not create `ralph_loop_runs/` and does not start optimization. It is for improving `RALPH_LOOP.md` and surfacing clarification questions.
@@ -173,19 +235,33 @@ The review step does not create `ralph_loop_runs/` and does not start optimizati
 Start optimization explicitly:
 
 ```bash
-ralph-loop run --config /tmp/cifar10-cnn-harness/ralph-loop.json
+ralph-loop run --config "$HARNESS_DIR/ralph-loop.json"
+ralph-loop status --harness "$HARNESS_DIR"
 ```
 
 Generated files such as `RALPH_LOOP.md`, `ralph_loop_runs/`, and iteration commits are written to the copied harness repository, not to this optimizer repository.
+
+The `fake` backend does not modify the harness target files. It is useful for checking the orchestration flow, artifact creation, evaluation capture, and Git commits before using a real AI backend.
 
 Current examples:
 
 - `examples/toy-benchmark/`: a dependency-free deterministic benchmark where the optimizer improves a binary decision strategy by editing `strategy.py`.
 - `examples/cifar10-cnn/`: a PyTorch and torchvision CIFAR-10 harness where the optimizer improves a small CNN by editing `model.py` and `train_config.py`.
 
+## Backends
+
+The current real coding backends are:
+
+- `codex`: runs the Codex CLI in non-interactive exec mode.
+- `claude`: runs Claude Code in non-interactive print mode.
+
+The `fake` backend remains available for deterministic dry runs and automated tests. It exercises the optimizer loop without calling an AI model or editing target files.
+
+Use `ralph-loop backends` to print the backend names accepted by the installed package.
+
 ## Current Status
 
-This repository now has an initial Python package scaffold, CLI entry point, configuration model, harness inspection, `init` command with starter config generation, pre-loop `review` command, backend adapters, evaluation capture, artifact writing, Git commit handling, and a bounded `run` command.
+This repository now has a Python package scaffold, CLI entry point, configuration model, harness inspection, `init` command with starter config generation, pre-loop `review` command, backend adapters, evaluation capture, artifact writing, Git commit handling, bounded `run`, `resume`, `status`, and backend listing.
 
 ## Development
 
@@ -205,4 +281,16 @@ Check the CLI help:
 
 ```bash
 python -m ralph_loop_optimizer.cli --help
+```
+
+Run the real CLI availability checks:
+
+```bash
+python -m pytest tests/test_real_cli_availability.py
+```
+
+Run the opt-in tests that ask the installed AI CLIs to edit a temporary harness:
+
+```bash
+RALPH_LOOP_RUN_REAL_AI_CLI=1 python -m pytest tests/test_real_cli_backends.py
 ```
