@@ -14,6 +14,7 @@ StreamCallback = Callable[[str], None]
 class BackendRequest:
     harness_path: Path
     prompt: str
+    phase: str = "implementation"
     operating_brief: str = ""
     harness_instructions: dict[Path, str] = field(default_factory=dict)
     prior_lessons: tuple[str, ...] = ()

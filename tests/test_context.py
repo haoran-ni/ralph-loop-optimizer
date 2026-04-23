@@ -14,6 +14,7 @@ from ralph_loop_optimizer.context import (
     ContextError,
     IterationContext,
     build_iteration_prompt,
+    build_lesson_update_prompt,
     load_latest_evaluation,
     load_operating_brief,
     load_prior_lessons,
@@ -134,7 +135,15 @@ def test_build_iteration_prompt_includes_context_and_constraints(
     assert "Use the harness rules." in prompt
     assert "Keep changes small." in prompt
     assert "score=7" in prompt
+    assert "1. Do not run the evaluation command yourself." in prompt
+    assert (
+        "If there are past lessons provided, learn from the past lessons "
+        "to make better decisions."
+    ) in prompt
+    assert "After finalizing the new modifications, review your code." in prompt
+    assert "You can only stop when the code is ready for evaluation." in prompt
     assert "Do not change harness evaluation behavior" in prompt
+    assert "Do not commit changes in this implementation round." in prompt
 
 
 def test_build_iteration_prompt_handles_missing_optional_context(
@@ -188,6 +197,47 @@ def test_build_iteration_prompt_does_not_add_domain_specific_assumptions(
 
     for forbidden in ("ML", "poker", "leaderboard", "benchmark"):
         assert forbidden not in prompt
+
+
+def test_build_lesson_update_prompt_instructs_backend_to_update_lesson_and_commit(
+    tmp_path: Path,
+) -> None:
+    harness_path = _git_repo(tmp_path / "harness")
+    run_paths = create_run_paths(harness_path, "run-001")
+    iteration_paths = create_iteration_paths(run_paths, 1)
+    config = OptimizerConfig(
+        harness_path=harness_path,
+        goal="Improve the measured score.",
+        backend="fake",
+        evaluation_command="python evaluate.py",
+    )
+    context = IterationContext(
+        operating_brief="# Brief\n",
+        prior_lessons=("Iteration 001 (`lesson.md`):\n\nKeep it small.",),
+        latest_evaluation="Iteration 001 (`evaluation.txt`):\n\nscore=7",
+    )
+
+    prompt = build_lesson_update_prompt(
+        config,
+        context,
+        iteration_paths,
+        "implementation prompt",
+        "# Evaluation Result\n\n- Succeeded: yes\n\nscore=8",
+        "diff --git a/strategy.py b/strategy.py\n",
+    )
+
+    assert "# Ralph Loop Lesson Update Prompt" in prompt
+    assert "Update the `lesson.md` file" in prompt
+    assert "performance change" in prompt
+    assert "Keep `lesson.md` concise" in prompt
+    assert "Do not modify any actual code in this round." in prompt
+    assert "Commit the updates in the harness repository" in prompt
+    assert "You can only quit after making the commit." in prompt
+    assert "`ralph_loop_runs/run-001/iterations/001/lesson.md`" in prompt
+    assert "- Commit message: `ralph-loop iteration 001`" in prompt
+    assert "score=7" in prompt
+    assert "score=8" in prompt
+    assert "diff --git" in prompt
 
 
 def _git_repo(path: Path) -> Path:

@@ -39,6 +39,9 @@ def test_create_iteration_paths_uses_zero_padded_directory(
     assert iteration_paths.iteration_number == 1
     assert iteration_paths.iteration_dir == run_paths.iterations_dir / "001"
     assert iteration_paths.prompt_path == iteration_paths.iteration_dir / "prompt.md"
+    assert iteration_paths.lesson_prompt_path == (
+        iteration_paths.iteration_dir / "lesson_prompt.md"
+    )
     assert iteration_paths.evaluation_path == (
         iteration_paths.iteration_dir / "evaluation.txt"
     )

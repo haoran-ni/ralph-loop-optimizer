@@ -24,6 +24,7 @@ from ralph_loop_optimizer.config import (
 from ralph_loop_optimizer.context import (
     IterationContext,
     build_iteration_prompt,
+    build_lesson_update_prompt,
     load_latest_evaluation,
     load_operating_brief,
     load_prior_lessons,
@@ -34,7 +35,7 @@ from ralph_loop_optimizer.evaluation import (
     format_evaluation_result,
     run_evaluation,
 )
-from ralph_loop_optimizer.git import commit, get_diff, get_status, stage_paths
+from ralph_loop_optimizer.git import current_head, get_diff_since, get_status
 from ralph_loop_optimizer.harness import get_worktree_status, read_harness_instructions
 from ralph_loop_optimizer.lessons import LessonEvidence, distill_lesson
 from ralph_loop_optimizer.progress import ProgressReporter, relative_path
@@ -56,10 +57,18 @@ class IterationRecord:
     evaluation_result: EvaluationResult
     commit_hash: str
     artifact_commit_hash: str
+    lesson_backend_result: BackendResult | None = None
 
     @property
     def succeeded(self) -> bool:
-        return self.backend_result.succeeded and self.evaluation_result.succeeded
+        return (
+            self.backend_result.succeeded
+            and self.evaluation_result.succeeded
+            and (
+                self.lesson_backend_result is None
+                or self.lesson_backend_result.succeeded
+            )
+        )
 
 
 @dataclass(frozen=True)
@@ -112,6 +121,7 @@ def run_iteration(
         )
     context = _load_iteration_context(state)
     prompt = build_iteration_prompt(state.config, context)
+    implementation_base_ref = current_head(state.run_paths.repo_path)
     if progress is not None:
         progress.block(f"Prompt for iteration {iteration_number:03d}", prompt)
 
@@ -124,6 +134,7 @@ def run_iteration(
         BackendRequest(
             harness_path=state.run_paths.repo_path,
             prompt=prompt,
+            phase="implementation",
             operating_brief=context.operating_brief,
             harness_instructions=context.harness_instructions,
             prior_lessons=context.prior_lessons,
@@ -181,16 +192,8 @@ def run_iteration(
     evaluation_text = format_evaluation_result(evaluation_result)
 
     if progress is not None:
-        progress.status("Capturing diff and committing experiment")
-    stage_paths(state.run_paths.repo_path, [Path(".")])
-    captured_diff = get_diff(state.run_paths.repo_path)
-    experiment_commit_hash = commit(
-        state.run_paths.repo_path,
-        f"ralph-loop iteration {iteration_number:03d} experiment",
-        allow_empty=True,
-    )
-    if progress is not None:
-        progress.status(f"Experiment commit: {experiment_commit_hash}")
+        progress.status("Capturing implementation diff")
+    captured_diff = get_diff_since(state.run_paths.repo_path, implementation_base_ref)
 
     iteration_paths = create_iteration_paths(state.run_paths, iteration_number)
     if progress is not None:
@@ -198,26 +201,97 @@ def run_iteration(
             "Writing iteration artifacts: "
             f"{relative_path(iteration_paths.iteration_dir, state.run_paths.repo_path)}"
         )
-    _write_iteration_artifacts(
-        state,
+    lesson_seed = distill_lesson(
+        LessonEvidence(
+            iteration_number=iteration_paths.iteration_number,
+            backend_name=backend_result.backend_name,
+            backend_succeeded=backend_result.succeeded,
+            backend_exit_code=backend_result.exit_code,
+            evaluation_succeeded=evaluation_result.succeeded,
+            evaluation_exit_code=evaluation_result.exit_code,
+            evaluation_timed_out=evaluation_result.timed_out,
+            manual_evaluation_required=evaluation_result.manual_required,
+            commit_hash=None,
+            evaluation_path=_relative_path(
+                iteration_paths.evaluation_path,
+                state.run_paths.repo_path,
+            ),
+            diff_path=_relative_path(
+                iteration_paths.diff_path,
+                state.run_paths.repo_path,
+            ),
+            result_path=_relative_path(
+                iteration_paths.result_path,
+                state.run_paths.repo_path,
+            ),
+        )
+    )
+    lesson_prompt = build_lesson_update_prompt(
+        state.config,
+        context,
         iteration_paths,
         prompt,
         evaluation_text,
         captured_diff,
+    )
+    _write_iteration_artifacts(
+        state,
+        iteration_paths,
+        prompt,
+        lesson_prompt,
+        evaluation_text,
+        captured_diff,
+        lesson_seed,
         backend_result,
         evaluation_result,
-        experiment_commit_hash,
     )
 
+    lesson_commit_base_ref = current_head(state.run_paths.repo_path)
     if progress is not None:
-        progress.status("Committing iteration artifacts")
-    stage_paths(state.run_paths.repo_path, [Path(".")])
-    artifact_commit_hash = commit(
-        state.run_paths.repo_path,
-        f"ralph-loop iteration {iteration_number:03d} artifacts",
+        progress.block(
+            f"Lesson update prompt for iteration {iteration_number:03d}",
+            lesson_prompt,
+        )
+        progress.status(f"Calling backend for lesson update: {backend.name}")
+        progress.status("Waiting for lesson update commit...")
+    lesson_backend_result = run_backend(
+        backend,
+        BackendRequest(
+            harness_path=state.run_paths.repo_path,
+            prompt=lesson_prompt,
+            phase="lesson_update",
+            operating_brief=context.operating_brief,
+            harness_instructions=context.harness_instructions,
+            prior_lessons=context.prior_lessons,
+            latest_evaluation=evaluation_text,
+            timeout_seconds=state.config.command_timeout_seconds,
+            stream_output=progress is not None,
+            stdout_callback=(
+                progress.backend_stdout_callback(backend.name)
+                if progress is not None
+                else None
+            ),
+            stderr_callback=(
+                progress.backend_stderr_callback(backend.name)
+                if progress is not None
+                else None
+            ),
+        ),
     )
     if progress is not None:
-        progress.status(f"Artifact commit: {artifact_commit_hash}")
+        progress.status(
+            f"Lesson update backend finished: exit code "
+            f"{lesson_backend_result.exit_code}, elapsed "
+            f"{_format_elapsed(lesson_backend_result.elapsed_seconds)}"
+        )
+
+    final_commit_hash = _require_lesson_update_commit(
+        state.run_paths.repo_path,
+        lesson_commit_base_ref,
+        lesson_backend_result,
+    )
+    if progress is not None:
+        progress.status(f"Final iteration commit: {final_commit_hash}")
         progress.status(f"Completed iteration {iteration_number:03d}")
 
     return IterationRecord(
@@ -229,8 +303,9 @@ def run_iteration(
         diff_path=iteration_paths.diff_path,
         backend_result=backend_result,
         evaluation_result=evaluation_result,
-        commit_hash=experiment_commit_hash,
-        artifact_commit_hash=artifact_commit_hash,
+        commit_hash=final_commit_hash,
+        artifact_commit_hash=final_commit_hash,
+        lesson_backend_result=lesson_backend_result,
     )
 
 
@@ -278,11 +353,12 @@ def _write_iteration_artifacts(
     state: RunState,
     iteration_paths: IterationPaths,
     prompt: str,
+    lesson_prompt: str,
     evaluation_text: str,
     captured_diff: str,
+    lesson_text: str,
     backend_result: BackendResult,
     evaluation_result: EvaluationResult,
-    experiment_commit_hash: str,
 ) -> None:
     if not state.run_paths.config_path.exists():
         write_config(state.config, state.run_paths.config_path)
@@ -290,6 +366,11 @@ def _write_iteration_artifacts(
     write_text_artifact(
         iteration_paths.prompt_path,
         prompt,
+        repo_path=state.run_paths.repo_path,
+    )
+    write_text_artifact(
+        iteration_paths.lesson_prompt_path,
+        lesson_prompt,
         repo_path=state.run_paths.repo_path,
     )
     write_text_artifact(
@@ -308,37 +389,12 @@ def _write_iteration_artifacts(
             iteration_paths.iteration_number,
             backend_result,
             evaluation_result,
-            experiment_commit_hash,
         ),
         repo_path=state.run_paths.repo_path,
     )
     write_text_artifact(
         iteration_paths.lesson_path,
-        distill_lesson(
-            LessonEvidence(
-                iteration_number=iteration_paths.iteration_number,
-                backend_name=backend_result.backend_name,
-                backend_succeeded=backend_result.succeeded,
-                backend_exit_code=backend_result.exit_code,
-                evaluation_succeeded=evaluation_result.succeeded,
-                evaluation_exit_code=evaluation_result.exit_code,
-                evaluation_timed_out=evaluation_result.timed_out,
-                manual_evaluation_required=evaluation_result.manual_required,
-                commit_hash=experiment_commit_hash,
-                evaluation_path=_relative_path(
-                    iteration_paths.evaluation_path,
-                    state.run_paths.repo_path,
-                ),
-                diff_path=_relative_path(
-                    iteration_paths.diff_path,
-                    state.run_paths.repo_path,
-                ),
-                result_path=_relative_path(
-                    iteration_paths.result_path,
-                    state.run_paths.repo_path,
-                ),
-            )
-        ),
+        lesson_text,
         repo_path=state.run_paths.repo_path,
     )
 
@@ -347,7 +403,6 @@ def _format_iteration_result(
     iteration_number: int,
     backend_result: BackendResult,
     evaluation_result: EvaluationResult,
-    experiment_commit_hash: str,
 ) -> str:
     return "\n".join(
         [
@@ -363,7 +418,8 @@ def _format_iteration_result(
             f"- Evaluation timed out: {'yes' if evaluation_result.timed_out else 'no'}",
             "- Manual evaluation required: "
             f"{'yes' if evaluation_result.manual_required else 'no'}",
-            f"- Experiment commit hash: `{experiment_commit_hash}`",
+            "- Final commit hash: recorded by Git after the lesson update "
+            "backend commits.",
             "",
             "## Backend Stdout",
             "",
@@ -375,6 +431,33 @@ def _format_iteration_result(
             "",
         ]
     )
+
+
+def _require_lesson_update_commit(
+    repo_path: Path,
+    base_ref: str,
+    lesson_backend_result: BackendResult,
+) -> str:
+    if not lesson_backend_result.succeeded:
+        raise OrchestratorError(
+            "lesson update backend did not complete successfully; "
+            f"exit code {lesson_backend_result.exit_code}"
+        )
+
+    status = get_status(repo_path)
+    if status.is_dirty:
+        entries = "\n".join(f"- {entry}" for entry in status.entries)
+        raise OrchestratorError(
+            "lesson update backend left uncommitted changes; it must commit "
+            f"the iteration before exiting:\n{entries}"
+        )
+
+    final_commit_hash = current_head(repo_path)
+    if final_commit_hash == base_ref:
+        raise OrchestratorError(
+            "lesson update backend did not create a final iteration commit"
+        )
+    return final_commit_hash
 
 
 def _assert_starting_worktree_safe(repo_path: Path) -> None:

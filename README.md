@@ -22,8 +22,10 @@ Ralph Loop Optimizer owns the orchestration loop:
 - Build an iteration brief.
 - Run a selected coding CLI, such as Codex or Claude Code.
 - Run the harness evaluation.
-- Save results, logs, diffs, and lessons.
-- Commit experiments so they can be retrieved later.
+- Call the coding CLI again to update concise lessons from the diff and
+  evaluation feedback.
+- Save results, logs, diffs, prompts, and lessons.
+- Commit completed iterations so they can be retrieved later.
 - Continue until the configured limit or target is reached.
 
 The harness owns the domain behavior:
@@ -62,7 +64,7 @@ The intended workflow is:
 4. The user reviews or edits `ralph-loop.json`, especially `backend`, `max_iterations`, `evaluation_command`, and `command_timeout_seconds`.
 5. The user can run a pre-loop review to let the selected backend consolidate `RALPH_LOOP.md` and add clarification questions.
 6. The optimizer waits for an explicit `ralph-loop run --config ...` command.
-7. Each iteration runs a coding CLI against the harness, evaluates the result, records the outcome, saves lessons, and commits the experiment.
+7. Each iteration runs a coding CLI against the harness, evaluates the result, calls the coding CLI again to update `lesson.md`, and finishes when that backend has committed the code and Ralph Loop artifacts.
 
 `RALPH_LOOP.md` is the run-specific operating brief. It should capture:
 
@@ -135,6 +137,7 @@ ralph_loop_runs/
     iterations/
       001/
         prompt.md
+        lesson_prompt.md
         evaluation.*
         result.md
         lesson.md
@@ -145,8 +148,10 @@ The exact filenames and formats may evolve, but the purpose should remain stable
 
 - `RALPH_LOOP.md` is the human-readable operating brief.
 - `ralph-loop.json` is the starter configuration used by `ralph-loop run`.
-- `ralph_loop_runs/` stores iteration history, evaluation outputs, and lessons.
-- Git commits preserve each experiment so users can inspect, compare, revert, or reuse work.
+- `ralph_loop_runs/` stores iteration prompts, evaluation outputs, diffs,
+  results, and lessons.
+- Git commits preserve each completed iteration so users can inspect, compare,
+  revert, or reuse work.
 
 ## Configuration
 

@@ -44,7 +44,9 @@ def test_distill_lesson_links_successful_iteration_evidence() -> None:
     ) in lesson
     assert "- Diff: `ralph_loop_runs/run-001/iterations/001/diff.patch`" in lesson
     assert "- Result record: `ralph_loop_runs/run-001/iterations/001/result.md`" in lesson
-    assert "candidate improvement" in lesson
+    assert "Draft lesson seed for the post-evaluation AI review" in lesson
+    assert "compare the current metric output against prior evidence" in lesson
+    assert "record only the key takeaway" in lesson
 
 
 def test_distill_lesson_handles_failed_backend() -> None:
@@ -60,8 +62,8 @@ def test_distill_lesson_handles_failed_backend() -> None:
 
     assert "- Backend: `fake` failed with exit code 7." in lesson
     assert "- Evaluation: not recorded." in lesson
-    assert "backend attempt did not complete successfully" in lesson
-    assert "not reliable evidence" in lesson
+    assert "implementation backend did not complete cleanly" in lesson
+    assert "should not treat this as an improvement without evidence" in lesson
 
 
 def test_distill_lesson_handles_failed_evaluation() -> None:
@@ -77,8 +79,9 @@ def test_distill_lesson_handles_failed_evaluation() -> None:
     )
 
     assert "- Evaluation: failed with exit code 2." in lesson
-    assert "The evaluation failed" in lesson
-    assert "captured evaluation output and diff" in lesson
+    assert "Evaluation failed" in lesson
+    assert "failure signal" in lesson
+    assert "what to avoid or diagnose next" in lesson
 
 
 def test_distill_lesson_handles_manual_evaluation() -> None:
@@ -93,7 +96,7 @@ def test_distill_lesson_handles_manual_evaluation() -> None:
 
     assert "- Evaluation: manual evaluation required." in lesson
     assert "Manual evaluation is required" in lesson
-    assert "user-provided evaluation evidence" in lesson
+    assert "stay inconclusive until user-provided evaluation evidence exists" in lesson
 
 
 def test_distill_lesson_handles_timed_out_evaluation() -> None:
@@ -107,8 +110,9 @@ def test_distill_lesson_handles_timed_out_evaluation() -> None:
     )
 
     assert "- Evaluation: timed out." in lesson
-    assert "evaluation timed out" in lesson
+    assert "Evaluation timed out" in lesson
     assert "time budget" in lesson
+    assert "using the diff and logs" in lesson
 
 
 def test_distill_lesson_handles_inconclusive_evaluation() -> None:

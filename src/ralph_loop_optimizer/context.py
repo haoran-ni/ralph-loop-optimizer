@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ralph_loop_optimizer.artifacts import RunPaths
+from ralph_loop_optimizer.artifacts import IterationPaths, RunPaths
 from ralph_loop_optimizer.brief import BRIEF_FILENAME
 from ralph_loop_optimizer.config import OptimizerConfig
 from ralph_loop_optimizer.harness import WorktreeStatus, assert_git_repository
@@ -131,12 +131,95 @@ def build_iteration_prompt(
         "",
         "## Backend Task",
         "",
+        "1. Do not run the evaluation command yourself.",
+        "2. If there are past lessons provided, learn from the past lessons "
+        "to make better decisions. If no lesson is provided, just continue "
+        "as normal.",
+        "3. After finalizing the new modifications, review your code.",
+        "4. You can only stop when the code is ready for evaluation. To be "
+        "more specific, you can only stop after fully implementing the code "
+        "in this iteration and have finished the code review.",
+        "",
         "- Read the operating brief and harness instructions before editing.",
-        "- Make one small, reviewable change tied directly to the goal.",
+        "- Make changes tied directly to the goal.",
         "- Do not change harness evaluation behavior unless the brief explicitly "
         "allows it.",
+        "- Do not commit changes in this implementation round. Ralph Loop "
+        "Optimizer will run evaluation and call the backend again for the "
+        "lesson update and final commit.",
         "- Leave unrelated files and formatting alone.",
         "- Preserve useful evidence for the optimizer to record after evaluation.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def build_lesson_update_prompt(
+    config: OptimizerConfig,
+    context: IterationContext,
+    iteration_paths: IterationPaths,
+    implementation_prompt: str,
+    evaluation_text: str,
+    captured_diff: str,
+) -> str:
+    lines = [
+        "# Ralph Loop Lesson Update Prompt",
+        "",
+        "The implementation round for this iteration has finished, and Ralph "
+        "Loop Optimizer has run the configured evaluation command. Complete "
+        "the iteration by updating the lesson artifact and committing all "
+        "pending changes.",
+        "",
+        "## Goal",
+        "",
+        config.goal.strip(),
+        "",
+        "## Required Actions",
+        "",
+        "- Update the `lesson.md` file given the last modification and the "
+        "performance change.",
+        "- Think carefully before updating `lesson.md`.",
+        "- Keep `lesson.md` concise; only keep the key points.",
+        "- Do not modify any actual code in this round.",
+        "- Do not run the evaluation command yourself.",
+        "- Commit the updates in the harness repository, including the code "
+        "changes from the implementation round, `lesson.md`, and the "
+        "Ralph Loop artifact files.",
+        "- You can only quit after making the commit.",
+        "",
+        "## Paths",
+        "",
+        f"- Harness repository: `{config.harness_path.expanduser().resolve()}`",
+        f"- Implementation prompt: `{_relative_path(iteration_paths.prompt_path, config.harness_path)}`",
+        f"- Lesson update prompt: `{_relative_path(iteration_paths.lesson_prompt_path, config.harness_path)}`",
+        f"- Evaluation output: `{_relative_path(iteration_paths.evaluation_path, config.harness_path)}`",
+        f"- Diff: `{_relative_path(iteration_paths.diff_path, config.harness_path)}`",
+        f"- Result record: `{_relative_path(iteration_paths.result_path, config.harness_path)}`",
+        f"- Lesson artifact: `{_relative_path(iteration_paths.lesson_path, config.harness_path)}`",
+        f"- Commit message: `ralph-loop iteration {iteration_paths.iteration_number:03d}`",
+        "",
+        "## Prior Lessons",
+        "",
+        *_format_optional_items(context.prior_lessons, "No prior lessons recorded."),
+        "",
+        "## Previous Evaluation",
+        "",
+        *_format_optional_text(
+            context.latest_evaluation,
+            "No prior evaluation output recorded.",
+        ),
+        "",
+        "## Current Evaluation",
+        "",
+        *_format_text_block(evaluation_text),
+        "",
+        "## Captured Implementation Diff",
+        "",
+        *_format_text_block(captured_diff or "(no implementation diff captured)"),
+        "",
+        "## Implementation Prompt",
+        "",
+        *_format_text_block(implementation_prompt),
         "",
     ]
     return "\n".join(lines)

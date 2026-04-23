@@ -120,44 +120,54 @@ def _format_evidence(record: LessonEvidence) -> list[str]:
 
 
 def _lesson_text(record: LessonEvidence) -> str:
+    prefix = (
+        "Draft lesson seed for the post-evaluation AI review. Replace this "
+        "with a concise, evidence-backed lesson after reviewing the "
+        "implementation diff and evaluation output. "
+    )
+
     if not record.backend_succeeded:
         return (
-            "The backend attempt did not complete successfully, so this "
-            "iteration is not reliable evidence of an optimization improvement. "
-            "Inspect the result record and diff before reusing any change."
+            prefix +
+            "The implementation backend did not complete cleanly. The final "
+            "lesson should mention whether any partial changes are usable, "
+            "and should not treat this as an improvement without evidence."
         )
 
     if record.manual_evaluation_required:
         return (
-            "Manual evaluation is required for this iteration. Record "
-            "user-provided evaluation evidence before comparing this change "
-            "against prior attempts."
+            prefix +
+            "Manual evaluation is required. The final lesson should stay "
+            "inconclusive until user-provided evaluation evidence exists."
         )
 
     if record.evaluation_timed_out:
         return (
-            "The evaluation timed out, so this attempt may have exceeded the "
-            "harness time budget or blocked evaluation. Investigate the diff "
-            "and evaluation output before continuing in this direction."
+            prefix +
+            "Evaluation timed out. The final lesson should identify whether "
+            "the change likely exceeded the time budget or blocked evaluation, "
+            "using the diff and logs."
         )
 
     if record.evaluation_succeeded is False:
         return (
-            "The evaluation failed, so this iteration is not reliable evidence "
-            "of improvement. Use the captured evaluation output and diff to "
-            "diagnose the failure before trying a related change."
+            prefix +
+            "Evaluation failed. The final lesson should summarize the failure "
+            "signal and what to avoid or diagnose next."
         )
 
     if record.evaluation_succeeded is True:
         return (
-            "The backend completed and evaluation succeeded. Treat this as a "
-            "candidate improvement, and compare future attempts against the "
-            "captured evaluation output and committed diff."
+            prefix +
+            "Evaluation completed successfully. The final lesson should "
+            "compare the current metric output against prior evidence and "
+            "record only the key takeaway."
         )
 
     return (
-        "The backend completed, but no evaluation result was recorded. Treat "
-        "this iteration as inconclusive until evaluation evidence is available."
+        prefix +
+        "No evaluation result was recorded. The final lesson should mark this "
+        "iteration inconclusive."
     )
 
 

@@ -47,16 +47,38 @@ def assert_clean_worktree(repo_path: Path) -> None:
 
 def get_diff(repo_path: Path) -> str:
     repo_path = _repo_root(repo_path)
+    if _has_head(repo_path):
+        return get_diff_since(repo_path, "HEAD")
+
     diff_parts: list[str] = []
 
-    if _has_head(repo_path):
-        diff_result = _run_git(repo_path, ["diff", "--binary", "HEAD"], check=True)
-        if diff_result.stdout:
-            diff_parts.append(diff_result.stdout.rstrip())
-    else:
-        diff_result = _run_git(repo_path, ["diff", "--binary"], check=True)
-        if diff_result.stdout:
-            diff_parts.append(diff_result.stdout.rstrip())
+    diff_result = _run_git(repo_path, ["diff", "--binary"], check=True)
+    if diff_result.stdout:
+        diff_parts.append(diff_result.stdout.rstrip())
+
+    for path in _untracked_files(repo_path):
+        result = _run_git(
+            repo_path,
+            ["diff", "--binary", "--no-index", "--", os.devnull, path.as_posix()],
+            check=False,
+        )
+        if result.stdout:
+            diff_parts.append(result.stdout.rstrip())
+
+    if not diff_parts:
+        return ""
+    return "\n".join(diff_parts) + "\n"
+
+
+def get_diff_since(repo_path: Path, base_ref: str) -> str:
+    repo_path = _repo_root(repo_path)
+    if not base_ref.strip():
+        raise GitError("base_ref must not be empty")
+
+    diff_parts: list[str] = []
+    diff_result = _run_git(repo_path, ["diff", "--binary", base_ref], check=True)
+    if diff_result.stdout:
+        diff_parts.append(diff_result.stdout.rstrip())
 
     for path in _untracked_files(repo_path):
         result = _run_git(

@@ -70,7 +70,7 @@ def test_resume_loop_continues_from_next_iteration_without_overwriting(
         state.run_paths.iterations_dir / "002" / "prompt.md"
     ).read_text(encoding="utf-8")
     assert "Iteration 001" in second_prompt
-    assert "candidate improvement" in second_prompt
+    assert "Fake backend recorded the post-evaluation lesson update" in second_prompt
     assert get_status(harness_path).is_dirty is False
 
 

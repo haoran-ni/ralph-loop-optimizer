@@ -174,7 +174,7 @@ class _ParsedIterationResult:
     evaluation_exit_code: int | None
     evaluation_timed_out: bool
     manual_evaluation_required: bool
-    experiment_commit_hash: str
+    experiment_commit_hash: str | None
 
 
 def _load_iteration_record(
@@ -210,7 +210,13 @@ def _load_iteration_record(
         diff_path=iteration_paths.diff_path,
         backend_result=backend_result,
         evaluation_result=evaluation_result,
-        commit_hash=parsed_result.experiment_commit_hash,
+        commit_hash=(
+            parsed_result.experiment_commit_hash
+            or _latest_commit_touching(
+                run_paths.repo_path,
+                iteration_paths.iteration_dir,
+            )
+        ),
         artifact_commit_hash=_latest_commit_touching(
             run_paths.repo_path,
             iteration_paths.iteration_dir,
@@ -224,6 +230,7 @@ def _iteration_paths(run_paths: RunPaths, iteration_number: int) -> IterationPat
         iteration_number=iteration_number,
         iteration_dir=iteration_dir,
         prompt_path=iteration_dir / "prompt.md",
+        lesson_prompt_path=iteration_dir / "lesson_prompt.md",
         evaluation_path=iteration_dir / "evaluation.txt",
         result_path=iteration_dir / "result.md",
         lesson_path=iteration_dir / "lesson.md",
@@ -370,8 +377,7 @@ def _parse_iteration_result(
         text,
         "Manual evaluation required",
     )
-    experiment_commit_hash = _require_backtick_field(
-        iteration_dir,
+    experiment_commit_hash = _optional_backtick_field(
         text,
         "Experiment commit hash",
     )
@@ -413,6 +419,17 @@ def _require_backtick_field(iteration_dir: Path, text: str, field_name: str) -> 
     )
     if match is None:
         raise _malformed_result_error(iteration_dir, field_name)
+    return match.group(1)
+
+
+def _optional_backtick_field(text: str, field_name: str) -> str | None:
+    match = re.search(
+        rf"^- {re.escape(field_name)}: `([^`]+)`$",
+        text,
+        re.MULTILINE,
+    )
+    if match is None:
+        return None
     return match.group(1)
 
 

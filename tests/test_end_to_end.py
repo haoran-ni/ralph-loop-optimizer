@@ -72,19 +72,19 @@ def test_init_then_single_iteration_with_fake_backend(
     diff = (iteration_dir / "diff.patch").read_text(encoding="utf-8")
 
     assert "Improve the deterministic toy benchmark score." in prompt
+    assert (iteration_dir / "lesson_prompt.md").is_file()
     assert "toy-benchmark" in evaluation
     assert "- Succeeded: yes" in evaluation
     assert '"benchmark": "toy-benchmark"' in evaluation
     assert "- Backend: `fake`" in result
     assert "- Evaluation succeeded: yes" in result
-    assert "candidate improvement" in lesson
+    assert "Fake backend recorded the post-evaluation lesson update" in lesson
     assert "RALPH_LOOP.md" in diff
     assert "ralph-loop.json" in diff
 
     subjects = _git_log_subjects(harness_path)
-    assert subjects[:3] == [
-        "ralph-loop iteration 001 artifacts",
-        "ralph-loop iteration 001 experiment",
+    assert subjects[:2] == [
+        "ralph-loop iteration 001",
         "initial toy harness",
     ]
 
