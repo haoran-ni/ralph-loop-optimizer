@@ -13,6 +13,7 @@ from ralph_loop_optimizer.git import (
     current_head,
     get_diff,
     get_status,
+    reset_hard,
     stage_paths,
 )
 
@@ -146,6 +147,22 @@ def test_commit_can_create_empty_commit(tmp_path: Path) -> None:
     assert new_head == current_head(repo_path)
     assert new_head != previous_head
     assert _latest_subject(repo_path) == "empty experiment"
+    assert get_status(repo_path).is_dirty is False
+
+
+def test_reset_hard_restores_requested_commit(tmp_path: Path) -> None:
+    repo_path = _git_repo(tmp_path / "harness")
+    _write(repo_path / "README.md", "# Harness\n")
+    _commit_all(repo_path, "initial")
+    initial_head = current_head(repo_path)
+    _write(repo_path / "README.md", "# Harness\n\nChanged.\n")
+    _commit_all(repo_path, "second")
+
+    restored_head = reset_hard(repo_path, initial_head)
+
+    assert restored_head == initial_head
+    assert current_head(repo_path) == initial_head
+    assert _latest_subject(repo_path) == "initial"
     assert get_status(repo_path).is_dirty is False
 
 

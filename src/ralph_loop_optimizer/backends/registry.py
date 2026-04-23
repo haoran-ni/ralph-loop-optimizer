@@ -14,9 +14,6 @@ from ralph_loop_optimizer.backends.base import (
 )
 from ralph_loop_optimizer.backends.claude import ClaudeCodeBackend
 from ralph_loop_optimizer.backends.codex import CodexBackend
-from ralph_loop_optimizer.git import commit, get_status, stage_paths
-
-
 class BackendError(ValueError):
     """Raised when a backend name cannot be resolved."""
 
@@ -61,16 +58,9 @@ class FakeBackend:
         if lesson_path is not None:
             lesson_path.write_text(_fake_lesson_text(request), encoding="utf-8")
 
-        stage_paths(request.harness_path, [Path(".")])
-        if get_status(request.harness_path).is_dirty:
-            commit(
-                request.harness_path,
-                _extract_commit_message(request),
-            )
-
         stdout = "\n".join(
             [
-                "Fake backend completed lesson update and final commit.",
+                "Fake backend completed the lesson update without committing.",
                 f"Phase: {request.phase}",
                 f"Prompt characters: {len(request.prompt)}",
                 f"Prior lessons: {len(request.prior_lessons)}",
@@ -103,15 +93,6 @@ def _extract_lesson_path(request: BackendRequest) -> Path | None:
     except ValueError:
         return None
     return resolved
-
-
-def _extract_commit_message(request: BackendRequest) -> str:
-    match = re.search(r"^- Commit message: `([^`]+)`$", request.prompt, re.MULTILINE)
-    if match is None:
-        return "ralph-loop iteration"
-    return match.group(1)
-
-
 def _fake_lesson_text(request: BackendRequest) -> str:
     prior = (
         "Prior lessons were provided and should continue to guide the next change."

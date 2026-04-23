@@ -20,7 +20,7 @@ from ralph_loop_optimizer.config import (
     load_config,
 )
 from ralph_loop_optimizer.evaluation import EvaluationResult
-from ralph_loop_optimizer.git import get_status
+from ralph_loop_optimizer.git import current_head, get_status, reset_hard
 from ralph_loop_optimizer.harness import assert_git_repository
 from ralph_loop_optimizer.orchestrator import (
     IterationRecord,
@@ -103,6 +103,7 @@ def resume_loop(repo_path: Path, run_id: str) -> RunState:
     run_paths = _run_paths_for_id(repo_path, run_id)
     state = load_run_state(run_paths)
     _assert_clean_resume_worktree(state.run_paths.repo_path)
+    _restore_last_completed_iteration_commit(state)
 
     while should_continue(state):
         record = run_iteration(state)
@@ -348,6 +349,16 @@ def _assert_clean_resume_worktree(repo_path: Path) -> None:
         "harness worktree has uncommitted changes; commit or stash them "
         f"before resuming optimization:\n{entries}"
     )
+
+
+def _restore_last_completed_iteration_commit(state: RunState) -> None:
+    if not state.completed_iterations:
+        return
+
+    target_commit = state.completed_iterations[-1].commit_hash
+    if current_head(state.run_paths.repo_path) == target_commit:
+        return
+    reset_hard(state.run_paths.repo_path, target_commit)
 
 
 def _parse_iteration_result(

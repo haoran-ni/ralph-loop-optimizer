@@ -16,7 +16,6 @@ from ralph_loop_optimizer.artifacts import (
 from ralph_loop_optimizer.backends import BackendRequest, BackendResult, get_backend
 from ralph_loop_optimizer.backends.base import run_backend
 from ralph_loop_optimizer.config import (
-    CONFIG_FILENAME,
     OptimizerConfig,
     validate_config,
     write_config,
@@ -35,7 +34,13 @@ from ralph_loop_optimizer.evaluation import (
     format_evaluation_result,
     run_evaluation,
 )
-from ralph_loop_optimizer.git import current_head, get_diff_since, get_status
+from ralph_loop_optimizer.git import (
+    commit,
+    current_head,
+    get_diff_since,
+    get_status,
+    stage_paths,
+)
 from ralph_loop_optimizer.harness import get_worktree_status, read_harness_instructions
 from ralph_loop_optimizer.lessons import LessonEvidence, distill_lesson
 from ralph_loop_optimizer.progress import ProgressReporter, relative_path
@@ -158,6 +163,11 @@ def run_iteration(
             f"Backend finished: exit code {backend_result.exit_code}, "
             f"elapsed {_format_elapsed(backend_result.elapsed_seconds)}"
         )
+    _assert_backend_did_not_commit(
+        state.run_paths.repo_path,
+        implementation_base_ref,
+        "implementation",
+    )
 
     if progress is not None:
         if state.config.evaluation_command is None:
@@ -285,10 +295,12 @@ def run_iteration(
             f"{_format_elapsed(lesson_backend_result.elapsed_seconds)}"
         )
 
-    final_commit_hash = _require_lesson_update_commit(
+    final_commit_hash = _finalize_iteration_commit(
         state.run_paths.repo_path,
         lesson_commit_base_ref,
         lesson_backend_result,
+        iteration_number,
+        evaluation_result,
     )
     if progress is not None:
         progress.status(f"Final iteration commit: {final_commit_hash}")
@@ -418,8 +430,8 @@ def _format_iteration_result(
             f"- Evaluation timed out: {'yes' if evaluation_result.timed_out else 'no'}",
             "- Manual evaluation required: "
             f"{'yes' if evaluation_result.manual_required else 'no'}",
-            "- Final commit hash: recorded by Git after the lesson update "
-            "backend commits.",
+            "- Final commit hash: recorded by Git after Ralph Loop Optimizer "
+            "stages and commits the completed iteration.",
             "",
             "## Backend Stdout",
             "",
@@ -433,10 +445,12 @@ def _format_iteration_result(
     )
 
 
-def _require_lesson_update_commit(
+def _finalize_iteration_commit(
     repo_path: Path,
     base_ref: str,
     lesson_backend_result: BackendResult,
+    iteration_number: int,
+    evaluation_result: EvaluationResult,
 ) -> str:
     if not lesson_backend_result.succeeded:
         raise OrchestratorError(
@@ -444,47 +458,89 @@ def _require_lesson_update_commit(
             f"exit code {lesson_backend_result.exit_code}"
         )
 
-    status = get_status(repo_path)
-    if status.is_dirty:
-        entries = "\n".join(f"- {entry}" for entry in status.entries)
-        raise OrchestratorError(
-            "lesson update backend left uncommitted changes; it must commit "
-            f"the iteration before exiting:\n{entries}"
-        )
-
-    final_commit_hash = current_head(repo_path)
-    if final_commit_hash == base_ref:
-        raise OrchestratorError(
-            "lesson update backend did not create a final iteration commit"
-        )
-    return final_commit_hash
+    _assert_backend_did_not_commit(repo_path, base_ref, "lesson update")
+    stage_paths(repo_path, [Path(".")])
+    return commit(
+        repo_path,
+        _build_iteration_commit_message(iteration_number, evaluation_result),
+    )
 
 
 def _assert_starting_worktree_safe(repo_path: Path) -> None:
     status = get_status(repo_path)
-    unsafe_entries = tuple(
-        entry for entry in status.entries if not _is_allowed_starting_entry(entry)
-    )
-    if not unsafe_entries:
+    if not status.is_dirty:
         return
 
-    entries = "\n".join(f"- {entry}" for entry in unsafe_entries)
+    entries = "\n".join(f"- {entry}" for entry in status.entries)
     raise OrchestratorError(
-        f"harness worktree has uncommitted changes outside RALPH_LOOP.md and "
-        f"{CONFIG_FILENAME}; "
-        f"commit or stash them before starting optimization:\n{entries}"
+        "harness worktree has uncommitted changes; commit or stash them "
+        f"before starting optimization:\n{entries}"
     )
 
 
-def _is_allowed_starting_entry(entry: str) -> bool:
-    return _status_entry_path(entry) in {"RALPH_LOOP.md", CONFIG_FILENAME}
+def _assert_backend_did_not_commit(
+    repo_path: Path,
+    base_ref: str,
+    phase: str,
+) -> None:
+    final_commit_hash = current_head(repo_path)
+    if final_commit_hash != base_ref:
+        raise OrchestratorError(
+            f"{phase} backend must not create Git commits; "
+            f"expected HEAD {base_ref}, found {final_commit_hash}"
+        )
 
 
-def _status_entry_path(entry: str) -> str:
-    path = entry[3:] if len(entry) > 3 else entry
-    if " -> " in path:
-        return path.split(" -> ", 1)[1]
-    return path
+def _build_iteration_commit_message(
+    iteration_number: int,
+    evaluation_result: EvaluationResult,
+) -> str:
+    summary = _summarize_evaluation_for_commit(evaluation_result)
+    return "\n".join(
+        [
+            f"Add ralph loop iteration {iteration_number:03d}",
+            "",
+            "Evaluation summary:",
+            summary,
+        ]
+    )
+
+
+def _summarize_evaluation_for_commit(evaluation_result: EvaluationResult) -> str:
+    if evaluation_result.manual_required:
+        return "Manual evaluation required."
+    if evaluation_result.succeeded:
+        return evaluation_result.stdout.strip() or "Evaluation succeeded."
+    if evaluation_result.timed_out:
+        timeout_text = _first_nonempty_text(
+            evaluation_result.stderr,
+            evaluation_result.stdout,
+        )
+        if timeout_text:
+            return timeout_text
+        return (
+            "Evaluation timed out after "
+            f"{evaluation_result.elapsed_seconds:.3f} seconds."
+        )
+
+    failure_text = _first_nonempty_text(
+        evaluation_result.stderr,
+        evaluation_result.stdout,
+    )
+    if failure_text:
+        return failure_text
+
+    if evaluation_result.exit_code is not None:
+        return f"Evaluation failed with exit code {evaluation_result.exit_code}."
+    return "Evaluation failed."
+
+
+def _first_nonempty_text(*values: str) -> str | None:
+    for value in values:
+        stripped = value.strip()
+        if stripped:
+            return stripped
+    return None
 
 
 def _new_run_id(repo_path: Path, artifact_dir: Path) -> str:

@@ -48,6 +48,7 @@ def test_init_then_single_iteration_with_fake_backend(
     assert config.backend == "fake"
     assert config.max_iterations == 1
     assert config.evaluation_command == _python_file_command("evaluate.py")
+    _commit_all(harness_path, "prepare ralph loop run")
 
     run_exit_code = main(["run", "--config", str(harness_path / "ralph-loop.json")])
 
@@ -79,12 +80,12 @@ def test_init_then_single_iteration_with_fake_backend(
     assert "- Backend: `fake`" in result
     assert "- Evaluation succeeded: yes" in result
     assert "Fake backend recorded the post-evaluation lesson update" in lesson
-    assert "RALPH_LOOP.md" in diff
-    assert "ralph-loop.json" in diff
+    assert diff == ""
 
     subjects = _git_log_subjects(harness_path)
-    assert subjects[:2] == [
-        "ralph-loop iteration 001",
+    assert subjects[:3] == [
+        "Add ralph loop iteration 001",
+        "prepare ralph loop run",
         "initial toy harness",
     ]
 

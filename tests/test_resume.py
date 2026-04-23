@@ -98,6 +98,31 @@ def test_resume_loop_uses_configured_artifact_directory(tmp_path: Path) -> None:
     assert get_status(harness_path).is_dirty is False
 
 
+def test_resume_loop_restores_last_completed_iteration_commit(tmp_path: Path) -> None:
+    harness_path = _prepared_harness(tmp_path)
+    state = initialize_run(_config(harness_path, max_iterations=2))
+    first_record = run_iteration(state)
+    _write(harness_path / "README.md", "# Harness\n\nDifferent clean commit.\n")
+    _commit_all(harness_path, "detour")
+
+    resumed_state = resume_loop(harness_path, state.run_paths.run_id)
+
+    assert resumed_state.completed_iterations[-1].iteration_number == 2
+    assert _git_log_subjects(harness_path)[:3] == [
+        "Add ralph loop iteration 002",
+        "Add ralph loop iteration 001",
+        "initial",
+    ]
+    assert "detour" not in _git_log_subjects(harness_path)
+    assert first_record.commit_hash in subprocess.run(
+        ["git", "rev-list", "HEAD"],
+        cwd=harness_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+
+
 def test_validate_resume_state_refuses_partial_iteration(tmp_path: Path) -> None:
     harness_path = _prepared_harness(tmp_path)
     state = initialize_run(_config(harness_path, max_iterations=2))
@@ -206,11 +231,11 @@ def _config(harness_path: Path, *, max_iterations: int) -> OptimizerConfig:
 def _prepared_harness(tmp_path: Path) -> Path:
     harness_path = _git_repo(tmp_path / "harness")
     _write(harness_path / "README.md", "# Harness\n")
-    _commit_all(harness_path, "initial")
     _write(
         harness_path / "RALPH_LOOP.md",
         "# Ralph Loop Operating Brief\n\nTry one improvement.\n",
     )
+    _commit_all(harness_path, "initial")
     return harness_path
 
 
@@ -249,3 +274,14 @@ def _write(path: Path, content: str) -> None:
 
 def _python_command(code: str) -> str:
     return f"{shlex.quote(sys.executable)} -c {shlex.quote(code)}"
+
+
+def _git_log_subjects(repo_path: Path) -> list[str]:
+    result = subprocess.run(
+        ["git", "log", "--format=%s"],
+        cwd=repo_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return [line for line in result.stdout.splitlines() if line]

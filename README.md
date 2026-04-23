@@ -52,7 +52,15 @@ The harness should provide:
 
 Ralph Loop Optimizer does not require a fixed evaluation output schema. A harness may print terminal logs, write JSON, write Markdown, emit CSV files, generate leaderboard tables, produce model metrics, or output custom reports.
 
-Structured outputs are recommended because they are easier to compare. Good options include JSON, Markdown summaries, CSV metric tables, or clearly labeled log sections. However, any format is acceptable if the output is visible, repeatable enough to compare, and understandable to an LLM.
+Structured outputs are recommended because they are easier to compare. Good
+options include JSON, Markdown summaries, CSV metric tables, or clearly
+labeled log sections. However, any format is acceptable if the output is
+visible, repeatable enough to compare, and understandable to an LLM.
+
+For best results, the harness evaluation command should emit concise text that
+directly states the current performance metrics on success, or a concise
+failure message on error. Ralph Loop Optimizer uses that summary text in
+iteration records, lessons, and commit messages.
 
 ## Workflow
 
@@ -63,8 +71,12 @@ The intended workflow is:
 3. Ralph Loop Optimizer inspects the harness and creates `RALPH_LOOP.md` plus a starter `ralph-loop.json` config in the harness repository.
 4. The user reviews or edits `ralph-loop.json`, especially `backend`, `max_iterations`, `evaluation_command`, and `command_timeout_seconds`.
 5. The user can run a pre-loop review to let the selected backend consolidate `RALPH_LOOP.md` and add clarification questions.
-6. The optimizer waits for an explicit `ralph-loop run --config ...` command.
-7. Each iteration runs a coding CLI against the harness, evaluates the result, calls the coding CLI again to update `lesson.md`, and finishes when that backend has committed the code and Ralph Loop artifacts.
+6. The user commits the reviewed harness state, including `RALPH_LOOP.md` and
+   any approved config changes, so the harness worktree is clean.
+7. The optimizer waits for an explicit `ralph-loop run --config ...` command.
+8. Each iteration runs a coding CLI against the harness, evaluates the result,
+   calls the coding CLI again to update `lesson.md`, and then Ralph Loop
+   Optimizer stages and commits the code and Ralph Loop artifacts itself.
 
 `RALPH_LOOP.md` is the run-specific operating brief. It should capture:
 
@@ -222,6 +234,10 @@ Review and edit `$HARNESS_DIR/ralph-loop.json` before starting. The most common 
 - `evaluation_command`: the harness command that produces performance feedback.
 - `command_timeout_seconds`: optional timeout for backend and evaluation commands.
 
+Before `ralph-loop run`, commit the reviewed harness state so the harness
+worktree is clean. This includes `RALPH_LOOP.md`, `ralph-loop.json`, and any
+other user-approved harness changes.
+
 Check the pre-run state:
 
 ```bash
@@ -237,6 +253,13 @@ ralph-loop review --config "$HARNESS_DIR/ralph-loop.json"
 
 The review step does not create `ralph_loop_runs/` and does not start optimization. It is for improving `RALPH_LOOP.md` and surfacing clarification questions.
 
+Commit the reviewed harness state before running the loop:
+
+```bash
+git add RALPH_LOOP.md ralph-loop.json
+git commit -m "prepare Ralph Loop run"
+```
+
 Start optimization explicitly:
 
 ```bash
@@ -246,7 +269,9 @@ ralph-loop status --harness "$HARNESS_DIR"
 
 Generated files such as `RALPH_LOOP.md`, `ralph_loop_runs/`, and iteration commits are written to the copied harness repository, not to this optimizer repository.
 
-The `fake` backend does not modify the harness target files. It is useful for checking the orchestration flow, artifact creation, evaluation capture, and Git commits before using a real AI backend.
+The `fake` backend does not modify the harness target files. It is useful for
+checking the orchestration flow, artifact creation, evaluation capture, lesson
+updates, and package-managed Git commits before using a real AI backend.
 
 Current examples:
 

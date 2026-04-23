@@ -145,8 +145,8 @@ def build_iteration_prompt(
         "- Do not change harness evaluation behavior unless the brief explicitly "
         "allows it.",
         "- Do not commit changes in this implementation round. Ralph Loop "
-        "Optimizer will run evaluation and call the backend again for the "
-        "lesson update and final commit.",
+        "Optimizer will run evaluation, call the backend again for the "
+        "lesson update, and handle Git staging and the final commit itself.",
         "- Leave unrelated files and formatting alone.",
         "- Preserve useful evidence for the optimizer to record after evaluation.",
         "",
@@ -167,8 +167,8 @@ def build_lesson_update_prompt(
         "",
         "The implementation round for this iteration has finished, and Ralph "
         "Loop Optimizer has run the configured evaluation command. Complete "
-        "the iteration by updating the lesson artifact and committing all "
-        "pending changes.",
+        "the iteration by updating the lesson artifact. Ralph Loop Optimizer "
+        "will stage and commit the iteration after this round finishes.",
         "",
         "## Goal",
         "",
@@ -182,10 +182,10 @@ def build_lesson_update_prompt(
         "- Keep `lesson.md` concise; only keep the key points.",
         "- Do not modify any actual code in this round.",
         "- Do not run the evaluation command yourself.",
-        "- Commit the updates in the harness repository, including the code "
-        "changes from the implementation round, `lesson.md`, and the "
-        "Ralph Loop artifact files.",
-        "- You can only quit after making the commit.",
+        "- Do not commit changes yourself. Ralph Loop Optimizer will stage "
+        "and commit the code changes from the implementation round, "
+        "`lesson.md`, and the Ralph Loop artifact files after you finish.",
+        "- You can only quit after updating `lesson.md` and reviewing it.",
         "",
         "## Paths",
         "",
@@ -196,7 +196,6 @@ def build_lesson_update_prompt(
         f"- Diff: `{_relative_path(iteration_paths.diff_path, config.harness_path)}`",
         f"- Result record: `{_relative_path(iteration_paths.result_path, config.harness_path)}`",
         f"- Lesson artifact: `{_relative_path(iteration_paths.lesson_path, config.harness_path)}`",
-        f"- Commit message: `ralph-loop iteration {iteration_paths.iteration_number:03d}`",
         "",
         "## Prior Lessons",
         "",

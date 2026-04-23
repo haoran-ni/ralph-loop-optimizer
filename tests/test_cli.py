@@ -120,11 +120,11 @@ def test_run_command_completes_configured_loop(
 ) -> None:
     harness_path = _git_repo(tmp_path / "harness")
     _write(harness_path / "README.md", "# Harness\n")
-    _commit_all(harness_path)
     _write(
         harness_path / "RALPH_LOOP.md",
         "# Ralph Loop Operating Brief\n\nTry one improvement.\n",
     )
+    _commit_all(harness_path)
     config_path = tmp_path / "ralph-loop.json"
     write_config(
         OptimizerConfig(
@@ -172,6 +172,7 @@ def test_run_command_accepts_generated_init_config(
         ]
     )
     capsys.readouterr()
+    _commit_all(harness_path)
 
     exit_code = main(["run", "--config", str(harness_path / "ralph-loop.json")])
 
@@ -236,11 +237,11 @@ def test_status_command_reports_selected_run(
 ) -> None:
     harness_path = _git_repo(tmp_path / "harness")
     _write(harness_path / "README.md", "# Harness\n")
-    _commit_all(harness_path)
     _write(
         harness_path / "RALPH_LOOP.md",
         "# Ralph Loop Operating Brief\n\nTry one improvement.\n",
     )
+    _commit_all(harness_path)
     config_path = tmp_path / "ralph-loop.json"
     write_config(
         OptimizerConfig(

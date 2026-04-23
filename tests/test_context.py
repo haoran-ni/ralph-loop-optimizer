@@ -144,6 +144,7 @@ def test_build_iteration_prompt_includes_context_and_constraints(
     assert "You can only stop when the code is ready for evaluation." in prompt
     assert "Do not change harness evaluation behavior" in prompt
     assert "Do not commit changes in this implementation round." in prompt
+    assert "handle Git staging and the final commit itself" in prompt
 
 
 def test_build_iteration_prompt_handles_missing_optional_context(
@@ -231,10 +232,10 @@ def test_build_lesson_update_prompt_instructs_backend_to_update_lesson_and_commi
     assert "performance change" in prompt
     assert "Keep `lesson.md` concise" in prompt
     assert "Do not modify any actual code in this round." in prompt
-    assert "Commit the updates in the harness repository" in prompt
-    assert "You can only quit after making the commit." in prompt
+    assert "Do not commit changes yourself." in prompt
+    assert "Ralph Loop Optimizer will stage and commit" in prompt
+    assert "You can only quit after updating `lesson.md` and reviewing it." in prompt
     assert "`ralph_loop_runs/run-001/iterations/001/lesson.md`" in prompt
-    assert "- Commit message: `ralph-loop iteration 001`" in prompt
     assert "score=7" in prompt
     assert "score=8" in prompt
     assert "diff --git" in prompt

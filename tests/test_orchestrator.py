@@ -42,9 +42,7 @@ def test_run_loop_completes_one_fake_iteration(tmp_path: Path) -> None:
     assert "score=10" in (iteration_dir / "evaluation.txt").read_text(
         encoding="utf-8"
     )
-    assert "RALPH_LOOP.md" in (iteration_dir / "diff.patch").read_text(
-        encoding="utf-8"
-    )
+    assert (iteration_dir / "diff.patch").read_text(encoding="utf-8") == ""
     assert "Backend succeeded: yes" in (iteration_dir / "result.md").read_text(
         encoding="utf-8"
     )
@@ -52,13 +50,14 @@ def test_run_loop_completes_one_fake_iteration(tmp_path: Path) -> None:
     lesson = (iteration_dir / "lesson.md").read_text(encoding="utf-8")
     lesson_prompt = (iteration_dir / "lesson_prompt.md").read_text(encoding="utf-8")
     assert "Final commit hash: recorded by Git" in result
-    assert "You can only quit after making the commit." in lesson_prompt
+    assert "Do not commit changes yourself." in lesson_prompt
     assert "not recorded" not in lesson
     assert "Fake backend recorded the post-evaluation lesson update" in lesson
     assert "Evaluation succeeded" in lesson
+    assert _latest_subject(harness_path) == "Add ralph loop iteration 001"
+    assert "score=10" in _latest_body(harness_path)
 
     committed_files = _commit_files(harness_path, record.commit_hash)
-    assert "RALPH_LOOP.md" in committed_files
     assert f"{state.run_paths.run_dir.relative_to(harness_path).as_posix()}/config.json" in (
         committed_files
     )
@@ -141,7 +140,7 @@ def test_run_loop_records_failed_backend(
     assert get_status(harness_path).is_dirty is False
 
 
-def test_run_loop_requires_lesson_update_backend_to_commit(
+def test_run_loop_refuses_lesson_update_backend_commit(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -153,18 +152,18 @@ def test_run_loop_requires_lesson_update_backend_to_commit(
     )
     monkeypatch.setattr(
         "ralph_loop_optimizer.orchestrator.get_backend",
-        lambda name: NonCommittingLessonBackend(),
+        lambda name: CommittingLessonBackend(),
     )
 
-    with pytest.raises(OrchestratorError, match="left uncommitted changes"):
+    with pytest.raises(OrchestratorError, match="must not create Git commits"):
         run_loop(config)
 
 
-def test_initialize_run_refuses_unrelated_dirty_worktree(tmp_path: Path) -> None:
+def test_initialize_run_refuses_dirty_worktree(tmp_path: Path) -> None:
     harness_path = _prepared_harness(tmp_path)
     _write(harness_path / "scratch.txt", "uncommitted\n")
 
-    with pytest.raises(OrchestratorError, match="outside RALPH_LOOP.md"):
+    with pytest.raises(OrchestratorError, match="uncommitted changes"):
         initialize_run(
             OptimizerConfig(
                 harness_path=harness_path,
@@ -181,17 +180,10 @@ class FailingBackend:
 
     def run_backend(self, request: BackendRequest) -> BackendResult:
         if request.phase == "lesson_update":
-            subprocess.run(["git", "add", "."], cwd=request.harness_path, check=True)
-            subprocess.run(
-                ["git", "commit", "-m", "ralph-loop lesson update"],
-                cwd=request.harness_path,
-                check=True,
-                capture_output=True,
-            )
             return BackendResult(
                 backend_name=self.name,
                 exit_code=0,
-                stdout="lesson committed\n",
+                stdout="lesson updated\n",
                 stderr="",
             )
 
@@ -203,10 +195,18 @@ class FailingBackend:
         )
 
 
-class NonCommittingLessonBackend:
+class CommittingLessonBackend:
     name = "fake"
 
     def run_backend(self, request: BackendRequest) -> BackendResult:
+        if request.phase == "lesson_update":
+            subprocess.run(["git", "add", "."], cwd=request.harness_path, check=True)
+            subprocess.run(
+                ["git", "commit", "-m", "unexpected backend commit"],
+                cwd=request.harness_path,
+                check=True,
+                capture_output=True,
+            )
         return BackendResult(
             backend_name=self.name,
             exit_code=0,
@@ -218,11 +218,11 @@ class NonCommittingLessonBackend:
 def _prepared_harness(tmp_path: Path) -> Path:
     harness_path = _git_repo(tmp_path / "harness")
     _write(harness_path / "README.md", "# Harness\n")
-    _commit_all(harness_path, "initial")
     _write(
         harness_path / "RALPH_LOOP.md",
         "# Ralph Loop Operating Brief\n\nTry one improvement.\n",
     )
+    _commit_all(harness_path, "initial")
     return harness_path
 
 
@@ -263,6 +263,28 @@ def _commit_files(repo_path: Path, commit_hash: str) -> set[str]:
         text=True,
     )
     return {line for line in result.stdout.splitlines() if line}
+
+
+def _latest_subject(repo_path: Path) -> str:
+    result = subprocess.run(
+        ["git", "log", "-1", "--pretty=%s"],
+        cwd=repo_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
+
+
+def _latest_body(repo_path: Path) -> str:
+    result = subprocess.run(
+        ["git", "log", "-1", "--pretty=%b"],
+        cwd=repo_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
 
 
 def _python_command(code: str) -> str:

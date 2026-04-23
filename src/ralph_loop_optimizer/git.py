@@ -120,6 +120,15 @@ def commit(repo_path: Path, message: str, *, allow_empty: bool = False) -> str:
     return current_head(repo_path)
 
 
+def reset_hard(repo_path: Path, target_ref: str) -> str:
+    repo_path = _repo_root(repo_path)
+    if not target_ref.strip():
+        raise GitError("target_ref must not be empty")
+
+    _run_git(repo_path, ["reset", "--hard", target_ref.strip()], check=True)
+    return current_head(repo_path)
+
+
 def current_head(repo_path: Path) -> str:
     repo_path = _repo_root(repo_path)
     result = _run_git(repo_path, ["rev-parse", "HEAD"], check=True)
