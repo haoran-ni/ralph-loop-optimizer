@@ -240,7 +240,6 @@ def run_iteration(
         state.config,
         context,
         iteration_paths,
-        prompt,
         evaluation_text,
         captured_diff,
     )

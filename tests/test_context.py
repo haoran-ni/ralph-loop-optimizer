@@ -95,7 +95,7 @@ def test_load_latest_evaluation_returns_none_without_evaluation(
     assert load_latest_evaluation(run_paths) is None
 
 
-def test_build_iteration_prompt_includes_context_and_constraints(
+def test_build_iteration_prompt_includes_context_and_evaluation(
     tmp_path: Path,
 ) -> None:
     harness_path = _git_repo(tmp_path / "harness")
@@ -122,12 +122,11 @@ def test_build_iteration_prompt_includes_context_and_constraints(
 
     assert "# Ralph Loop Iteration Prompt" in prompt
     assert "Improve the measured score." in prompt
-    assert f"- Harness repository: `{harness_path.resolve()}`" in prompt
-    assert "- Backend: `fake`" in prompt
-    assert "- Maximum iterations for this run: 2" in prompt
-    assert "- Evaluation command: `python evaluate.py`" in prompt
-    assert "- Command timeout: 30 seconds" in prompt
-    assert "- Resume behavior: `refuse_dirty`" in prompt
+    assert "## Orchestration Constraints" not in prompt
+    assert "## Evaluation Context" in prompt
+    assert "The optimizer will run this harness evaluation after you finish:" in prompt
+    assert "`python evaluate.py`" in prompt
+    assert "Do not run the evaluation command yourself." in prompt
     assert "` M strategy.py`" in prompt
     assert "`?? notes.md`" in prompt
     assert "Follow the operating brief." in prompt
@@ -135,7 +134,6 @@ def test_build_iteration_prompt_includes_context_and_constraints(
     assert "Use the harness rules." in prompt
     assert "Keep changes small." in prompt
     assert "score=7" in prompt
-    assert "1. Do not run the evaluation command yourself." in prompt
     assert (
         "If there are past lessons provided, learn from the past lessons "
         "to make better decisions."
@@ -158,8 +156,7 @@ def test_build_iteration_prompt_handles_missing_optional_context(
 
     prompt = build_iteration_prompt(config, context)
 
-    assert "- Evaluation command: not provided" in prompt
-    assert "- Command timeout: not configured" in prompt
+    assert "No evaluation command is configured for this harness." in prompt
     assert "- Not checked." in prompt
     assert "No harness instruction files were loaded." in prompt
     assert "No prior lessons recorded." in prompt
@@ -222,7 +219,6 @@ def test_build_lesson_update_prompt_instructs_backend_to_update_lesson_and_commi
         config,
         context,
         iteration_paths,
-        "implementation prompt",
         "# Evaluation Result\n\n- Succeeded: yes\n\nscore=8",
         "diff --git a/strategy.py b/strategy.py\n",
     )
@@ -239,6 +235,8 @@ def test_build_lesson_update_prompt_instructs_backend_to_update_lesson_and_commi
     assert "score=7" in prompt
     assert "score=8" in prompt
     assert "diff --git" in prompt
+    assert "Implementation prompt" not in prompt
+    assert "## Implementation Prompt" not in prompt
 
 
 def _git_repo(path: Path) -> Path:

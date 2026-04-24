@@ -94,17 +94,9 @@ def build_iteration_prompt(
         "",
         config.goal.strip(),
         "",
-        "## Orchestration Constraints",
+        "## Evaluation Context",
         "",
-        f"- Harness repository: `{config.harness_path.expanduser().resolve()}`",
-        f"- Backend: `{config.backend}`",
-        f"- Maximum iterations for this run: {config.max_iterations}",
-        "- Evaluation command: "
-        f"{_format_optional_command(config.evaluation_command)}",
-        f"- Run artifact directory: `{config.run_artifact_dir.as_posix()}`",
-        "- Command timeout: "
-        f"{_format_optional_seconds(config.command_timeout_seconds)}",
-        f"- Resume behavior: `{config.resume_behavior}`",
+        *_format_evaluation_context(config.evaluation_command),
         "",
         "## Current Worktree Status",
         "",
@@ -131,12 +123,11 @@ def build_iteration_prompt(
         "",
         "## Backend Task",
         "",
-        "1. Do not run the evaluation command yourself.",
-        "2. If there are past lessons provided, learn from the past lessons "
+        "1. If there are past lessons provided, learn from the past lessons "
         "to make better decisions. If no lesson is provided, just continue "
         "as normal.",
-        "3. After finalizing the new modifications, review your code.",
-        "4. You can only stop when the code is ready for evaluation. To be "
+        "2. After finalizing the new modifications, review your code.",
+        "3. You can only stop when the code is ready for evaluation. To be "
         "more specific, you can only stop after fully implementing the code "
         "in this iteration and have finished the code review.",
         "",
@@ -158,7 +149,6 @@ def build_lesson_update_prompt(
     config: OptimizerConfig,
     context: IterationContext,
     iteration_paths: IterationPaths,
-    implementation_prompt: str,
     evaluation_text: str,
     captured_diff: str,
 ) -> str:
@@ -190,7 +180,6 @@ def build_lesson_update_prompt(
         "## Paths",
         "",
         f"- Harness repository: `{config.harness_path.expanduser().resolve()}`",
-        f"- Implementation prompt: `{_relative_path(iteration_paths.prompt_path, config.harness_path)}`",
         f"- Lesson update prompt: `{_relative_path(iteration_paths.lesson_prompt_path, config.harness_path)}`",
         f"- Evaluation output: `{_relative_path(iteration_paths.evaluation_path, config.harness_path)}`",
         f"- Diff: `{_relative_path(iteration_paths.diff_path, config.harness_path)}`",
@@ -215,10 +204,6 @@ def build_lesson_update_prompt(
         "## Captured Implementation Diff",
         "",
         *_format_text_block(captured_diff or "(no implementation diff captured)"),
-        "",
-        "## Implementation Prompt",
-        "",
-        *_format_text_block(implementation_prompt),
         "",
     ]
     return "\n".join(lines)
@@ -252,10 +237,21 @@ def _format_optional_command(command: str | None) -> str:
     return f"`{command.strip()}`"
 
 
-def _format_optional_seconds(seconds: int | None) -> str:
-    if seconds is None:
-        return "not configured"
-    return f"{seconds} seconds"
+def _format_evaluation_context(command: str | None) -> list[str]:
+    if command is None:
+        return [
+            "No evaluation command is configured for this harness. The "
+            "optimizer will record manual evaluation mode after you finish.",
+            "",
+            "Do not run evaluation yourself.",
+        ]
+    return [
+        "The optimizer will run this harness evaluation after you finish:",
+        "",
+        _format_optional_command(command),
+        "",
+        "Do not run the evaluation command yourself.",
+    ]
 
 
 def _format_worktree_status(status: WorktreeStatus | None) -> list[str]:
