@@ -41,6 +41,12 @@ def test_build_brief_review_prompt_defines_init_boundary(
     assert "`ralph-loop.json`" in prompt
     assert "Do not copy full harness instruction" in prompt
     assert "Harness reference file paths" in prompt
+    assert "working-environment clues" in prompt
+    assert "`environment.yml`" in prompt
+    assert "Treat any active shell or conda environment as a hint" in prompt
+    assert "exact command wrapper" in prompt
+    assert "`conda run -n <env>`" in prompt
+    assert "instead of guessing" in prompt
     assert "File modification scope" in prompt
     assert "AI behavior requirements" in prompt
     assert "python evaluate.py" in prompt

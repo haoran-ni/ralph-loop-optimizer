@@ -82,10 +82,14 @@ The intended workflow is:
 
 - The user's optimization goal.
 - Harness reference file paths and short explanations.
+- Working environment notes, dependency clues, and command wrappers for local
+  checks or evaluation.
 - File modification scope, constraints, and requirements.
 - AI behavior requirements for future optimization iterations.
 
-The initial draft uses placeholders rather than guessed file paths. The init-time AI review, or the user, should fill in harness reference files only after inspecting the repository.
+The initial draft uses placeholders rather than guessed file paths. The
+init-time AI review, or the user, should fill in harness reference files and
+working environment details only after inspecting the repository.
 
 Optimization should not begin until the user explicitly confirms that the loop should start.
 
@@ -234,7 +238,9 @@ Review and edit `$HARNESS_DIR/RALPH_LOOP.md` and `$HARNESS_DIR/ralph-loop.json` 
 
 - `backend`: use `fake` for deterministic dry runs, or `codex` / `claude` when those CLIs are installed.
 - `max_iterations`: the maximum number of optimization attempts.
-- `evaluation_command`: the harness command that produces performance feedback.
+- `evaluation_command`: the harness command that produces performance feedback,
+  including any environment wrapper such as `uv run`, `poetry run`,
+  `.venv/bin/python`, or `conda run -n <env>` when required.
 - `command_timeout_seconds`: optional timeout for backend and evaluation commands.
 
 Before `ralph-loop run`, commit the reviewed harness state so the harness

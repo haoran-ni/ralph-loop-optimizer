@@ -123,13 +123,26 @@ def build_brief_review_prompt(
             "full harness instruction, documentation, source, test, or evaluation "
             f"file contents into `{BRIEF_FILENAME}`.",
             "",
+            "Inspect dependency and working-environment clues such as `.venv`, "
+            "`requirements.txt`, `pyproject.toml`, `environment.yml`, `uv.lock`, "
+            "`poetry.lock`, `Pipfile`, setup instructions, and current shell "
+            "environment hints. Treat any active shell or conda environment as a "
+            "hint, not proof that it is the correct harness environment.",
+            "",
             f"Update `{BRIEF_FILENAME}` so it is a concise harness operating "
             "brief with only these responsibilities:",
             "",
             "- Optimization goal.",
             "- Harness reference file paths with short explanations of why they matter.",
+            "- Working environment requirements, including setup commands and the "
+            "exact command wrapper future AI iterations should use for local "
+            "checks or evaluation, such as `conda run -n <env>`, `uv run`, "
+            "`poetry run`, or `.venv/bin/python`.",
             "- File modification scope, constraints, and requirements.",
             "- AI behavior requirements for future optimization iterations.",
+            "",
+            "If the working environment is uncertain, add concise questions or "
+            f"placeholders inside `{BRIEF_FILENAME}` instead of guessing.",
             "",
             "Do not add package-owned orchestration details such as backend name, "
             "maximum iterations, run artifact paths, evaluation execution, or Git "

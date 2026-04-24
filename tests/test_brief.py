@@ -39,6 +39,8 @@ def test_build_operating_brief_includes_goal_and_placeholders(
     assert "Harness Reference Files" in brief
     assert "To be completed during init review or by the user." in brief
     assert "- `<path>`: `<why this file matters>`" in brief
+    assert "Working Environment" in brief
+    assert "Command wrapper for local checks and evaluation" in brief
     assert "File Modification Scope" in brief
     assert "AI Behavior Requirements" in brief
     assert "Open Questions" in brief
