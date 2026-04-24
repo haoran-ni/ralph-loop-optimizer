@@ -1,5 +1,11 @@
 # Ralph Loop Optimizer
 
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Tests](https://img.shields.io/badge/tests-pytest-blue)
+![Backends](https://img.shields.io/badge/backends-codex%20%7C%20claude-purple)
+![Status](https://img.shields.io/badge/status-early%20open--source-orange)
+
 [This repo is an early open-source framework for iterative agentic optimization.]
 
 Ralph Loop Optimizer is an all-purpose optimizer for programmable strategies,
@@ -20,6 +26,25 @@ until the configured iteration limit is reached.
 For suitable harnesses, that means you can go AFK while the AI iteratively
 self-improves your strategy, architecture, or workflow against the feedback loop
 you defined.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  User["User goal"] --> Init["ralph-loop init"]
+  Harness["Harness Git repository"] --> Init
+  Init --> Brief["RALPH_LOOP.md"]
+  Init --> Config["ralph-loop.json"]
+  Brief --> Run["ralph-loop run"]
+  Config --> Run
+  Run --> Backend["Coding backend<br/>fake, codex, claude"]
+  Backend --> Changes["One focused harness change"]
+  Changes --> Evaluation["Harness evaluation command"]
+  Evaluation --> Artifacts["Artifacts<br/>prompt, result, diff, lesson"]
+  Artifacts --> Commit["Iteration Git commit"]
+  Artifacts --> Lessons["Prior lessons"]
+  Lessons --> Backend
+```
 
 ## What It Optimizes
 
