@@ -57,6 +57,10 @@ def test_init_command_creates_brief_and_reviews_without_starting_run(
     assert "AI review backend: fake" in output
     assert "AI review succeeded: yes" in output
     assert "Optimization was not started" in output
+    assert (
+        "Please commit the new files after finishing your review. The harness repo "
+        "is required to be clean before running the ralph loop optimizer."
+    ) in output
     assert _git_status_lines(harness_path) == [
         "?? RALPH_LOOP.md",
         "?? ralph-loop.json",
@@ -113,6 +117,10 @@ def test_init_command_can_skip_ai_review(
     assert "Skipped AI review during init." in output
     assert "AI review backend" not in output
     assert "Optimization was not started" in output
+    assert (
+        "Please commit the new files after finishing your review. The harness repo "
+        "is required to be clean before running the ralph loop optimizer."
+    ) in output
     assert not (harness_path / "ralph_loop_runs").exists()
     assert _git_status_lines(harness_path) == [
         "?? RALPH_LOOP.md",

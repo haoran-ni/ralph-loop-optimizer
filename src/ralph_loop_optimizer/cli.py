@@ -39,6 +39,11 @@ from ralph_loop_optimizer.resume import (
     resume_loop,
 )
 
+INIT_REVIEW_COMMIT_REMINDER = (
+    "Please commit the new files after finishing your review. The harness repo "
+    "is required to be clean before running the ralph loop optimizer."
+)
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -202,6 +207,7 @@ def cmd_init(args: argparse.Namespace) -> int:
             "Optimization was not started. Review RALPH_LOOP.md and the starter "
             "config before running."
         )
+        print(INIT_REVIEW_COMMIT_REMINDER)
         return 0
 
     result = run_brief_review(
@@ -225,6 +231,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         "Optimization was not started. Review RALPH_LOOP.md and the starter "
         "config before running."
     )
+    print(INIT_REVIEW_COMMIT_REMINDER)
     return 0 if result.succeeded else 1
 
 
