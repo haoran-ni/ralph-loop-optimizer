@@ -26,10 +26,10 @@ python -m pip install -r requirements.txt
 python evaluate.py
 ```
 
-The command trains the current model, evaluates test accuracy, and prints a
-plain-text summary plus a JSON record. Accuracy below the target is reported in
-the output but does not make the command fail; command failure is reserved for
-runtime or configuration errors.
+The command trains the current model, evaluates test accuracy, and prints
+concise plain-text progress and summary lines. The objective is to make test
+accuracy as high as possible; command failure is reserved for runtime or
+configuration errors.
 
 ## Files For Optimization
 
@@ -48,7 +48,6 @@ Run this command from a Git repository root that contains this harness:
 ```bash
 ralph-loop init \
   --harness /path/to/cifar10-cnn \
-  --goal "Improve the CIFAR-10 test accuracy of the CNN model." \
+  --goal "Maximize the CIFAR-10 test accuracy of the CNN model." \
   --evaluation-command "python evaluate.py"
 ```
-

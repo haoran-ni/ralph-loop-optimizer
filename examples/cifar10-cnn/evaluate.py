@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import random
 import time
 from pathlib import Path
@@ -23,7 +22,6 @@ from train_config import (
     MOMENTUM,
     NUM_WORKERS,
     SEED,
-    TARGET_ACCURACY,
     TEST_EXAMPLES_PER_CLASS,
     TRAIN_EXAMPLES_PER_CLASS,
     USE_AUGMENTATION,
@@ -50,7 +48,7 @@ def main() -> int:
     )
 
     started_at = time.perf_counter()
-    history = []
+    epochs_to_log = progress_epochs(EPOCHS)
     for epoch in range(1, EPOCHS + 1):
         torch.manual_seed(SEED + epoch)
         train_loss, train_accuracy = train_one_epoch(
@@ -61,39 +59,28 @@ def main() -> int:
             device,
         )
         test_loss, test_accuracy = evaluate(model, test_loader, loss_fn, device)
-        history.append(
-            {
-                "epoch": epoch,
-                "train_loss": round(train_loss, 6),
-                "train_accuracy": round(train_accuracy, 6),
-                "test_loss": round(test_loss, 6),
-                "test_accuracy": round(test_accuracy, 6),
-            }
-        )
-        print(
-            "epoch={epoch} train_loss={train_loss:.4f} "
-            "train_accuracy={train_accuracy:.4f} test_loss={test_loss:.4f} "
-            "test_accuracy={test_accuracy:.4f}".format(
-                epoch=epoch,
-                train_loss=train_loss,
-                train_accuracy=train_accuracy,
-                test_loss=test_loss,
-                test_accuracy=test_accuracy,
+        if epoch in epochs_to_log:
+            print(
+                "epoch={epoch} train_loss={train_loss:.4f} "
+                "train_accuracy={train_accuracy:.4f} test_loss={test_loss:.4f} "
+                "test_accuracy={test_accuracy:.4f}".format(
+                    epoch=epoch,
+                    train_loss=train_loss,
+                    train_accuracy=train_accuracy,
+                    test_loss=test_loss,
+                    test_accuracy=test_accuracy,
+                )
             )
-        )
 
-    final_accuracy = history[-1]["test_accuracy"]
+    final_accuracy = round(test_accuracy, 6)
     summary = {
         "dataset": "CIFAR-10",
         "device": str(device),
         "epochs": EPOCHS,
         "train_examples": TRAIN_EXAMPLES_PER_CLASS * CIFAR10_CLASSES,
         "test_examples": TEST_EXAMPLES_PER_CLASS * CIFAR10_CLASSES,
-        "target_accuracy": TARGET_ACCURACY,
         "test_accuracy": final_accuracy,
-        "target_met": final_accuracy >= TARGET_ACCURACY,
         "elapsed_seconds": round(time.perf_counter() - started_at, 3),
-        "history": history,
     }
     print_summary(summary)
     return 0
@@ -114,7 +101,6 @@ def validate_settings() -> None:
         "LEARNING_RATE": LEARNING_RATE,
         "WEIGHT_DECAY": WEIGHT_DECAY,
         "MOMENTUM": MOMENTUM,
-        "TARGET_ACCURACY": TARGET_ACCURACY,
     }
     for name, value in non_negative_numbers.items():
         if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
@@ -211,6 +197,15 @@ def build_transform(training: bool) -> transforms.Compose:
     return transforms.Compose(steps)
 
 
+def progress_epochs(total_epochs: int) -> set[int]:
+    if total_epochs <= 10:
+        return set(range(1, total_epochs + 1))
+    return {
+        round(1 + index * (total_epochs - 1) / 9)
+        for index in range(10)
+    }
+
+
 def class_balanced_indices(
     targets: Iterable[int],
     examples_per_class: int,
@@ -285,16 +280,11 @@ def evaluate(
 
 
 def print_summary(summary: dict[str, object]) -> None:
-    print("")
-    print("summary")
-    print(f"dataset: {summary['dataset']}")
-    print(f"train_examples: {summary['train_examples']}")
-    print(f"test_examples: {summary['test_examples']}")
-    print(f"target_accuracy: {summary['target_accuracy']:.4f}")
-    print(f"test_accuracy: {summary['test_accuracy']:.4f}")
-    print(f"target_met: {str(summary['target_met']).lower()}")
-    print("")
-    print(json.dumps(summary, indent=2, sort_keys=True))
+    print(
+        "summary dataset={dataset} epochs={epochs} train_examples={train_examples} "
+        "test_examples={test_examples} test_accuracy={test_accuracy:.4f} "
+        "elapsed_seconds={elapsed_seconds:.3f}".format(**summary)
+    )
 
 
 if __name__ == "__main__":
