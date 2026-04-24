@@ -15,7 +15,7 @@ from ralph_loop_optimizer.config import OptimizerConfig
 from ralph_loop_optimizer.harness import inspect_harness
 
 
-def test_build_operating_brief_includes_goal_and_harness_findings(
+def test_build_operating_brief_includes_goal_and_placeholders(
     tmp_path: Path,
 ) -> None:
     harness_path = _git_repo(tmp_path / "harness")
@@ -36,16 +36,24 @@ def test_build_operating_brief_includes_goal_and_harness_findings(
 
     assert "# Ralph Loop Operating Brief" in brief
     assert "Improve the score without changing the evaluator." in brief
-    assert "`python evaluate.py`" in brief
-    assert "`README.md`" in brief
-    assert "`pyproject.toml`" in brief
-    assert "`evaluate.py`" in brief
-    assert "`tests/test_score.py`" in brief
-    assert "`AGENTS.md`" in brief
-    assert "Optimization must not start until the user explicitly approves" in brief
+    assert "Harness Reference Files" in brief
+    assert "To be completed during init review or by the user." in brief
+    assert "- `<path>`: `<why this file matters>`" in brief
+    assert "File Modification Scope" in brief
+    assert "AI Behavior Requirements" in brief
+    assert "Open Questions" in brief
+    assert "`README.md`" not in brief
+    assert "`pyproject.toml`" not in brief
+    assert "`evaluate.py`" not in brief
+    assert "`tests/test_score.py`" not in brief
+    assert "`AGENTS.md`" not in brief
+    assert "Selected backend" not in brief
+    assert "Maximum iterations" not in brief
+    assert "`python evaluate.py`" not in brief
+    assert "Optimization must not start until the user explicitly approves" not in brief
 
 
-def test_build_operating_brief_records_missing_evaluation_command(
+def test_build_operating_brief_omits_package_orchestration_fields(
     tmp_path: Path,
 ) -> None:
     harness_path = _git_repo(tmp_path / "harness")
@@ -57,7 +65,9 @@ def test_build_operating_brief_records_missing_evaluation_command(
 
     brief = build_operating_brief(config, summary)
 
-    assert "- Configured evaluation command: not provided" in brief
+    assert "Configured evaluation command" not in brief
+    assert "Run artifact directory" not in brief
+    assert "Expected Iteration Process" not in brief
 
 
 def test_write_operating_brief_preserves_existing_file_by_default(

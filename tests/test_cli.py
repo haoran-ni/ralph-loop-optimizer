@@ -18,7 +18,7 @@ def test_cli_help_exits_successfully() -> None:
     assert exc_info.value.code == 0
 
 
-def test_init_command_creates_brief_without_starting_run(
+def test_init_command_creates_brief_and_reviews_without_starting_run(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -49,6 +49,13 @@ def test_init_command_creates_brief_without_starting_run(
     assert generated_config.backend == "fake"
     assert generated_config.evaluation_command == "python evaluate.py"
     assert not (harness_path / "ralph_loop_runs").exists()
+    assert "[ralph-loop] Init AI review prompt" in output
+    assert "# Ralph Loop Init Brief Review" in output
+    assert "[ralph-loop] Calling backend for init AI review: fake" in output
+    assert "[ralph-loop] Waiting for init AI review output or events..." in output
+    assert "[ralph-loop] Init AI review backend finished: exit code 0" in output
+    assert "AI review backend: fake" in output
+    assert "AI review succeeded: yes" in output
     assert "Optimization was not started" in output
     assert _git_status_lines(harness_path) == [
         "?? RALPH_LOOP.md",
@@ -72,6 +79,7 @@ def test_init_command_accepts_backend_for_starter_config(
             "Improve the score.",
             "--backend",
             "codex",
+            "--skip-ai-review",
         ]
     )
 
@@ -79,7 +87,7 @@ def test_init_command_accepts_backend_for_starter_config(
     assert load_config(harness_path / "ralph-loop.json").backend == "codex"
 
 
-def test_review_command_uses_fake_backend_without_starting_run(
+def test_init_command_can_skip_ai_review(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -87,7 +95,7 @@ def test_review_command_uses_fake_backend_without_starting_run(
     _write(harness_path / "README.md", "# Harness\n")
     _write(harness_path / "evaluate.py", "print('score')\n")
     _commit_all(harness_path)
-    main(
+    exit_code = main(
         [
             "init",
             "--harness",
@@ -96,22 +104,27 @@ def test_review_command_uses_fake_backend_without_starting_run(
             "Improve the score.",
             "--evaluation-command",
             "python evaluate.py",
+            "--skip-ai-review",
         ]
     )
-    capsys.readouterr()
-
-    exit_code = main(["review", "--config", str(harness_path / "ralph-loop.json")])
 
     output = capsys.readouterr().out
     assert exit_code == 0
-    assert "Review backend: fake" in output
-    assert "Review succeeded: yes" in output
+    assert "Skipped AI review during init." in output
+    assert "AI review backend" not in output
     assert "Optimization was not started" in output
     assert not (harness_path / "ralph_loop_runs").exists()
     assert _git_status_lines(harness_path) == [
         "?? RALPH_LOOP.md",
         "?? ralph-loop.json",
     ]
+
+
+def test_review_command_is_not_public() -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        main(["review", "--config", "missing.json"])
+
+    assert exc_info.value.code == 2
 
 
 def test_run_command_completes_configured_loop(

@@ -17,9 +17,8 @@ class BriefError(ValueError):
 
 def build_operating_brief(
     config: OptimizerConfig,
-    summary: HarnessSummary,
+    _summary: HarnessSummary,
 ) -> str:
-    worktree_status = "dirty" if summary.worktree_status.is_dirty else "clean"
     lines = [
         "# Ralph Loop Operating Brief",
         "",
@@ -30,90 +29,43 @@ def build_operating_brief(
         "",
         config.goal.strip(),
         "",
-        "## Harness Snapshot",
+        "## Harness Reference Files",
         "",
-        f"- Repository: `{summary.repo_path}`",
-        f"- Worktree status at initialization: {worktree_status}",
-        f"- Selected backend: `{config.backend}`",
-        f"- Maximum iterations: {config.max_iterations}",
-        f"- Run artifact directory: `{config.run_artifact_dir.as_posix()}`",
+        "To be completed during init review or by the user.",
+        "",
+        "List only files that are actually relevant after inspecting the "
+        "harness. For each file, include why it matters. Do not copy full "
+        "file contents here.",
+        "",
+        "- `<path>`: `<why this file matters>`",
+        "",
+        "## File Modification Scope",
+        "",
+        "To be completed during init review or by the user.",
+        "",
+        "- Allowed files or directories to change: `<fill in>`",
+        "- Files, commands, outputs, or behaviors that must not be changed: "
+        "`<fill in>`",
+        "- Evaluation/scoring behavior constraints: `<fill in>`",
+        "",
+        "## AI Behavior Requirements",
+        "",
+        "To be completed during init review or by the user.",
+        "",
+        "- Read relevant harness files before editing.",
+        "- Make one focused improvement per iteration, tied directly to the "
+        "optimization goal.",
+        "- Preserve evaluation/scoring semantics unless explicitly allowed.",
+        "- Use prior lessons and evaluation evidence when they are provided.",
+        "- Do not invent domain assumptions that are not supported by the "
+        "harness files, this brief, or the user goal.",
+        "- Leave unrelated files and formatting alone.",
+        "",
+        "## Open Questions",
+        "",
+        "- `<question or uncertainty to resolve before running optimization>`",
         "",
     ]
-
-    if summary.worktree_status.entries:
-        lines.extend(
-            [
-                "Uncommitted worktree entries seen during initialization:",
-                "",
-                *_format_bullets(summary.worktree_status.entries),
-                "",
-            ]
-        )
-
-    lines.extend(
-        [
-            "## Evaluation",
-            "",
-            "- Configured evaluation command: "
-            f"{_format_optional_command(config.evaluation_command)}",
-            "",
-            "Candidate evaluation files:",
-            "",
-            *_format_paths(summary.candidate_evaluation_files),
-            "",
-            "## Relevant Harness Files",
-            "",
-            "Candidate documentation:",
-            "",
-            *_format_paths(summary.candidate_docs),
-            "",
-            "Candidate setup files:",
-            "",
-            *_format_paths(summary.candidate_setup_files),
-            "",
-            "Candidate test files:",
-            "",
-            *_format_paths(summary.candidate_test_files),
-            "",
-            "Agent instruction files:",
-            "",
-            *_format_paths(summary.instruction_files),
-            "",
-            "## Expected Iteration Process",
-            "",
-            "1. Read this operating brief and the relevant harness instructions.",
-            "2. Read prior iteration artifacts and lessons when they exist.",
-            "3. Ask the selected coding backend to attempt one improvement.",
-            "4. Run or request the harness evaluation.",
-            "5. Save prompts, backend output, evaluation output, diffs, and lessons.",
-            "6. Commit the completed experiment in the harness Git repository.",
-            "7. Decide whether to continue based on results and configured limits.",
-            "",
-            "## Assumptions And Uncertainties",
-            "",
-            "- Ralph Loop Optimizer owns orchestration only; the harness owns "
-            "domain behavior and scoring.",
-            "- Candidate files above were inferred from file names and repository "
-            "layout, not from executing the harness.",
-            "- Evaluation output may use any format that is visible and useful for "
-            "comparison across iterations.",
-            "- Confirm any uncommitted harness changes before starting optimization.",
-            "",
-            "## Questions For The User",
-            "",
-            "- Is the optimization goal above accurate?",
-            "- Is the configured evaluation command correct and complete?",
-            "- Which files or workflows are safe for the optimizer to change?",
-            "- Are there files, commands, or behaviors that must not be changed?",
-            "- What result or stopping condition should count as good enough?",
-            "",
-            "## Start Boundary",
-            "",
-            "Optimization must not start until the user explicitly approves a run. "
-            "Initialization only creates or updates this operating brief.",
-            "",
-        ]
-    )
     return "\n".join(lines)
 
 
@@ -140,22 +92,6 @@ def write_operating_brief(
 
 def brief_exists(repo_path: Path) -> bool:
     return (repo_path.expanduser().resolve() / BRIEF_FILENAME).exists()
-
-
-def _format_optional_command(command: str | None) -> str:
-    if command is None:
-        return "not provided"
-    return f"`{command.strip()}`"
-
-
-def _format_paths(paths: list[Path]) -> list[str]:
-    if not paths:
-        return ["- None found."]
-    return [f"- `{path.as_posix()}`" for path in paths]
-
-
-def _format_bullets(values: tuple[str, ...]) -> list[str]:
-    return [f"- `{value}`" for value in values]
 
 
 def _ensure_trailing_newline(content: str) -> str:

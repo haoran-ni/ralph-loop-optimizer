@@ -8,11 +8,8 @@ import pytest
 from ralph_loop_optimizer.harness import (
     HarnessError,
     assert_git_repository,
-    find_candidate_docs,
-    find_candidate_evaluation_files,
     get_worktree_status,
     inspect_harness,
-    read_harness_instructions,
 )
 
 
@@ -24,53 +21,7 @@ def test_assert_git_repository_rejects_non_git_path(tmp_path: Path) -> None:
         assert_git_repository(harness_path)
 
 
-def test_find_candidate_docs_detects_root_and_docs_folder_files(
-    tmp_path: Path,
-) -> None:
-    harness_path = _git_repo(tmp_path / "harness")
-    _write(harness_path / "README.md", "# Harness\n")
-    _write(harness_path / "docs" / "evaluation.md", "# Evaluation\n")
-    _write(harness_path / "src" / "notes.md", "# Internal notes\n")
-
-    assert find_candidate_docs(harness_path) == [
-        Path("README.md"),
-        Path("docs/evaluation.md"),
-    ]
-
-
-def test_find_candidate_evaluation_files_detects_scripts_and_tests(
-    tmp_path: Path,
-) -> None:
-    harness_path = _git_repo(tmp_path / "harness")
-    _write(harness_path / "evaluate.py", "print('score')\n")
-    _write(harness_path / "scripts" / "benchmark.sh", "echo benchmark\n")
-    _write(harness_path / "tests" / "test_policy.py", "def test_policy(): pass\n")
-    _write(harness_path / "src" / "policy.py", "POLICY = 'baseline'\n")
-
-    assert find_candidate_evaluation_files(harness_path) == [
-        Path("evaluate.py"),
-        Path("scripts/benchmark.sh"),
-        Path("tests/test_policy.py"),
-    ]
-
-
-def test_read_harness_instructions_detects_agent_instruction_files(
-    tmp_path: Path,
-) -> None:
-    harness_path = _git_repo(tmp_path / "harness")
-    _write(harness_path / "AGENTS.md", "Use the harness rules.\n")
-    _write(harness_path / ".cursor" / "rules" / "optimizer.mdc", "Cursor rule.\n")
-    _write(harness_path / "README.md", "# Harness\n")
-
-    instructions = read_harness_instructions(harness_path)
-
-    assert instructions == {
-        Path(".cursor/rules/optimizer.mdc"): "Cursor rule.\n",
-        Path("AGENTS.md"): "Use the harness rules.\n",
-    }
-
-
-def test_inspect_harness_skips_deleted_tracked_instruction_files(
+def test_inspect_harness_reports_worktree_status_without_file_guessing(
     tmp_path: Path,
 ) -> None:
     harness_path = _git_repo(tmp_path / "harness")
@@ -80,8 +31,7 @@ def test_inspect_harness_skips_deleted_tracked_instruction_files(
 
     summary = inspect_harness(harness_path)
 
-    assert summary.instruction_files == []
-    assert summary.instructions == {}
+    assert summary.repo_path == harness_path.resolve()
     assert summary.worktree_status.is_dirty is True
     assert summary.worktree_status.entries == (" D AGENTS.md",)
 
@@ -104,7 +54,7 @@ def test_get_worktree_status_detects_clean_and_dirty_worktree(
     assert dirty_status.entries == ("?? scratch.txt",)
 
 
-def test_inspect_harness_returns_stable_summary(tmp_path: Path) -> None:
+def test_inspect_harness_returns_repo_path_and_status(tmp_path: Path) -> None:
     harness_path = _git_repo(tmp_path / "harness")
     _write(harness_path / "README.md", "# Harness\n")
     _write(harness_path / "pyproject.toml", "[project]\nname = 'harness'\n")
@@ -115,15 +65,6 @@ def test_inspect_harness_returns_stable_summary(tmp_path: Path) -> None:
     summary = inspect_harness(harness_path)
 
     assert summary.repo_path == harness_path.resolve()
-    assert summary.candidate_docs == [Path("README.md")]
-    assert summary.candidate_setup_files == [Path("pyproject.toml")]
-    assert summary.candidate_test_files == [Path("tests/test_score.py")]
-    assert summary.candidate_evaluation_files == [
-        Path("evaluate.py"),
-        Path("tests/test_score.py"),
-    ]
-    assert summary.instruction_files == [Path("AGENTS.md")]
-    assert summary.instructions == {Path("AGENTS.md"): "Stay generic.\n"}
     assert summary.worktree_status.is_dirty is True
 
 

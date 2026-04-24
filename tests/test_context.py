@@ -109,7 +109,6 @@ def test_build_iteration_prompt_includes_context_and_evaluation(
     )
     context = IterationContext(
         operating_brief="# Brief\n\nFollow the operating brief.\n",
-        harness_instructions={Path("AGENTS.md"): "Use the harness rules.\n"},
         prior_lessons=("Iteration 001 (`lesson.md`):\n\nKeep changes small.",),
         latest_evaluation="Iteration 001 (`evaluation.txt`):\n\nscore=7",
         worktree_status=WorktreeStatus(
@@ -130,8 +129,8 @@ def test_build_iteration_prompt_includes_context_and_evaluation(
     assert "` M strategy.py`" in prompt
     assert "`?? notes.md`" in prompt
     assert "Follow the operating brief." in prompt
-    assert "### `AGENTS.md`" in prompt
-    assert "Use the harness rules." in prompt
+    assert "## Harness Instructions" not in prompt
+    assert "Use the harness rules." not in prompt
     assert "Keep changes small." in prompt
     assert "score=7" in prompt
     assert (
@@ -158,7 +157,6 @@ def test_build_iteration_prompt_handles_missing_optional_context(
 
     assert "No evaluation command is configured for this harness." in prompt
     assert "- Not checked." in prompt
-    assert "No harness instruction files were loaded." in prompt
     assert "No prior lessons recorded." in prompt
     assert "No prior evaluation output recorded." in prompt
 
@@ -188,7 +186,6 @@ def test_build_iteration_prompt_does_not_add_domain_specific_assumptions(
     )
     context = IterationContext(
         operating_brief="Use the provided evaluator.",
-        harness_instructions={Path("AGENTS.md"): "Only edit allowed files."},
     )
 
     prompt = build_iteration_prompt(config, context)

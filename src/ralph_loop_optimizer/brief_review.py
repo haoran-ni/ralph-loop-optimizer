@@ -1,4 +1,4 @@
-"""Pre-loop operating brief review through a coding backend."""
+"""Init-time operating brief review through a coding backend."""
 
 from __future__ import annotations
 
@@ -11,10 +11,11 @@ from ralph_loop_optimizer.brief import BRIEF_FILENAME
 from ralph_loop_optimizer.config import ConfigError, OptimizerConfig, load_config
 from ralph_loop_optimizer.git import get_status
 from ralph_loop_optimizer.harness import HarnessSummary
+from ralph_loop_optimizer.progress import ProgressReporter
 
 
 class BriefReviewError(ValueError):
-    """Raised when pre-loop brief review cannot be completed safely."""
+    """Raised when init-time brief review cannot be completed safely."""
 
 
 @dataclass(frozen=True)
@@ -37,28 +38,54 @@ class BriefReviewResult:
         return self.backend_result.succeeded
 
 
-def run_brief_review(request: BriefReviewRequest) -> BriefReviewResult:
+def run_brief_review(
+    request: BriefReviewRequest,
+    *,
+    progress: ProgressReporter | None = None,
+) -> BriefReviewResult:
     repo_path = request.summary.repo_path
     brief_path = repo_path / BRIEF_FILENAME
     config_path = request.config_path.expanduser().resolve()
     allowed_paths = _allowed_review_paths(repo_path, config_path)
 
     _assert_only_review_files_changed(repo_path, allowed_paths, "before review")
+    prompt = build_brief_review_prompt(
+        request.config,
+        request.summary,
+        request.brief,
+    )
+    backend = get_backend(request.config.backend)
+    if progress is not None:
+        progress.block("Init AI review prompt", prompt)
+        progress.status(f"Calling backend for init AI review: {backend.name}")
+        progress.status("Waiting for init AI review output or events...")
 
     backend_result = run_backend(
-        get_backend(request.config.backend),
+        backend,
         BackendRequest(
             harness_path=repo_path,
-            prompt=build_brief_review_prompt(
-                request.config,
-                request.summary,
-                request.brief,
-            ),
+            prompt=prompt,
+            phase="brief_review",
             operating_brief=request.brief,
-            harness_instructions=request.summary.instructions,
             timeout_seconds=request.config.command_timeout_seconds,
+            stream_output=progress is not None,
+            stdout_callback=(
+                progress.backend_stdout_callback(backend.name)
+                if progress is not None
+                else None
+            ),
+            stderr_callback=(
+                progress.backend_stderr_callback(backend.name)
+                if progress is not None
+                else None
+            ),
         ),
     )
+    if progress is not None:
+        progress.status(
+            f"Init AI review backend finished: exit code "
+            f"{backend_result.exit_code}"
+        )
 
     changed_paths = _dirty_paths(repo_path)
     _assert_only_review_files_changed(repo_path, allowed_paths, "after review")
@@ -80,10 +107,10 @@ def build_brief_review_prompt(
 ) -> str:
     return "\n".join(
         [
-            "# Ralph Loop Pre-Run Brief Review",
+            "# Ralph Loop Init Brief Review",
             "",
-            "You are reviewing a harness before any optimization iterations start.",
-            "Do not optimize the harness yet.",
+            "You are refining the Ralph Loop operating brief during init, before "
+            "any optimization iterations start. Do not optimize the harness yet.",
             "",
             "Allowed file edits:",
             f"- `{BRIEF_FILENAME}`",
@@ -92,37 +119,33 @@ def build_brief_review_prompt(
             "Do not edit target source files, evaluation files, tests, datasets, or "
             "other harness behavior.",
             "",
-            "Review the operating brief against the harness files and instructions. "
-            "If useful, update the brief to clarify the goal, evaluation command, "
-            "safe edit boundaries, assumptions, uncertainties, and questions for "
-            "the user. If the brief is already adequate, leave it unchanged.",
+            "Inspect the harness by reading relevant files at runtime. Do not copy "
+            "full harness instruction, documentation, source, test, or evaluation "
+            f"file contents into `{BRIEF_FILENAME}`.",
             "",
-            "If user clarification is needed, add concise questions to "
-            f"`{BRIEF_FILENAME}` instead of starting an optimization attempt.",
+            f"Update `{BRIEF_FILENAME}` so it is a concise harness operating "
+            "brief with only these responsibilities:",
+            "",
+            "- Optimization goal.",
+            "- Harness reference file paths with short explanations of why they matter.",
+            "- File modification scope, constraints, and requirements.",
+            "- AI behavior requirements for future optimization iterations.",
+            "",
+            "Do not add package-owned orchestration details such as backend name, "
+            "maximum iterations, run artifact paths, evaluation execution, or Git "
+            "commit handling unless they are needed to correct `ralph-loop.json`.",
+            "",
+            "If user clarification is needed, add concise questions or placeholders "
+            f"inside `{BRIEF_FILENAME}` instead of starting an optimization attempt.",
             "",
             "Current configuration:",
             "",
             f"- Harness path: `{summary.repo_path}`",
             f"- Goal: {config.goal.strip()}",
-            f"- Backend: `{config.backend}`",
-            f"- Maximum iterations: {config.max_iterations}",
             "- Evaluation command: "
             f"{_format_optional(config.evaluation_command)}",
-            f"- Run artifact directory: `{config.run_artifact_dir.as_posix()}`",
             "- Command timeout seconds: "
             f"{_format_optional(config.command_timeout_seconds)}",
-            "",
-            "Candidate evaluation files:",
-            "",
-            *_format_paths(summary.candidate_evaluation_files),
-            "",
-            "Relevant documentation:",
-            "",
-            *_format_paths(summary.candidate_docs),
-            "",
-            "Agent instruction files:",
-            "",
-            *_format_paths(summary.instruction_files),
             "",
             "Current operating brief:",
             "",
@@ -193,12 +216,6 @@ def _status_entry_path(entry: str) -> Path:
     if " -> " in path_text:
         path_text = path_text.split(" -> ", 1)[1]
     return Path(path_text.strip('"'))
-
-
-def _format_paths(paths: list[Path]) -> list[str]:
-    if not paths:
-        return ["- None found."]
-    return [f"- `{path.as_posix()}`" for path in paths]
 
 
 def _format_optional(value: object | None) -> str:

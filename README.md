@@ -68,9 +68,9 @@ The intended workflow is:
 
 1. The user provides a harness repository directory.
 2. The user provides a prompt describing what they want to optimize.
-3. Ralph Loop Optimizer inspects the harness and creates `RALPH_LOOP.md` plus a starter `ralph-loop.json` config in the harness repository.
-4. The user reviews or edits `ralph-loop.json`, especially `backend`, `max_iterations`, `evaluation_command`, and `command_timeout_seconds`.
-5. The user can run a pre-loop review to let the selected backend consolidate `RALPH_LOOP.md` and add clarification questions.
+3. Ralph Loop Optimizer validates the harness and creates a placeholder `RALPH_LOOP.md` plus a starter `ralph-loop.json` config in the harness repository.
+4. Unless `--skip-ai-review` is passed, `init` calls the configured backend to inspect the harness and refine `RALPH_LOOP.md` without starting optimization.
+5. The user reviews or edits `RALPH_LOOP.md` and `ralph-loop.json`, especially `backend`, `max_iterations`, `evaluation_command`, and `command_timeout_seconds`.
 6. The user commits the reviewed harness state, including `RALPH_LOOP.md` and
    any approved config changes, so the harness worktree is clean.
 7. The optimizer waits for an explicit `ralph-loop run --config ...` command.
@@ -81,19 +81,17 @@ The intended workflow is:
 `RALPH_LOOP.md` is the run-specific operating brief. It should capture:
 
 - The user's optimization goal.
-- What the harness appears to do.
-- How evaluation appears to work.
-- What files or workflows seem relevant.
-- The expected iteration process.
-- Assumptions or uncertainties that need user review.
+- Harness reference file paths and short explanations.
+- File modification scope, constraints, and requirements.
+- AI behavior requirements for future optimization iterations.
+
+The initial draft uses placeholders rather than guessed file paths. The init-time AI review, or the user, should fill in harness reference files only after inspecting the repository.
 
 Optimization should not begin until the user explicitly confirms that the loop should start.
 
-The pre-loop review command is still before the start boundary. It may update `RALPH_LOOP.md` and the starter config, but it must not optimize target source files or create iteration artifacts.
-
 ## Command Reference
 
-Inspect a harness and write the starter files without starting optimization:
+Inspect a harness, write the starter files, and ask the configured backend to refine `RALPH_LOOP.md` without starting optimization:
 
 ```bash
 ralph-loop init \
@@ -103,10 +101,15 @@ ralph-loop init \
   --backend fake
 ```
 
-Ask the configured backend to review and consolidate `RALPH_LOOP.md` before the run starts:
+Skip the AI review during init when only the mechanical draft is needed:
 
 ```bash
-ralph-loop review --config /path/to/harness/ralph-loop.json
+ralph-loop init \
+  --harness /path/to/harness \
+  --goal "Describe what should improve." \
+  --evaluation-command "python evaluate.py" \
+  --backend fake \
+  --skip-ai-review
 ```
 
 Start the optimization loop explicitly:
@@ -227,7 +230,7 @@ $HARNESS_DIR/RALPH_LOOP.md
 $HARNESS_DIR/ralph-loop.json
 ```
 
-Review and edit `$HARNESS_DIR/ralph-loop.json` before starting. The most common fields to change are:
+Review and edit `$HARNESS_DIR/RALPH_LOOP.md` and `$HARNESS_DIR/ralph-loop.json` before starting. The most common config fields to change are:
 
 - `backend`: use `fake` for deterministic dry runs, or `codex` / `claude` when those CLIs are installed.
 - `max_iterations`: the maximum number of optimization attempts.
@@ -244,14 +247,6 @@ Check the pre-run state:
 ralph-loop status --harness "$HARNESS_DIR"
 ralph-loop backends
 ```
-
-Optionally ask the configured backend to consolidate the operating brief before the run starts:
-
-```bash
-ralph-loop review --config "$HARNESS_DIR/ralph-loop.json"
-```
-
-The review step does not create `ralph_loop_runs/` and does not start optimization. It is for improving `RALPH_LOOP.md` and surfacing clarification questions.
 
 Commit the reviewed harness state before running the loop:
 
@@ -291,7 +286,7 @@ Use `ralph-loop backends` to print the backend names accepted by the installed p
 
 ## Current Status
 
-This repository now has a Python package scaffold, CLI entry point, configuration model, harness inspection, `init` command with starter config generation, pre-loop `review` command, backend adapters, evaluation capture, artifact writing, Git commit handling, bounded `run`, `resume`, `status`, and backend listing.
+This repository now has a Python package scaffold, CLI entry point, configuration model, harness inspection, `init` command with starter config generation and optional AI brief refinement, backend adapters, evaluation capture, artifact writing, Git commit handling, bounded `run`, `resume`, `status`, and backend listing.
 
 ## Development
 

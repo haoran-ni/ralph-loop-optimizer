@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from io import StringIO
 import subprocess
 from pathlib import Path
 
@@ -14,9 +15,10 @@ from ralph_loop_optimizer.brief_review import (
 )
 from ralph_loop_optimizer.config import OptimizerConfig, default_config_path, write_config
 from ralph_loop_optimizer.harness import inspect_harness
+from ralph_loop_optimizer.progress import ProgressReporter
 
 
-def test_build_brief_review_prompt_preserves_start_boundary(
+def test_build_brief_review_prompt_defines_init_boundary(
     tmp_path: Path,
 ) -> None:
     harness_path = _prepared_harness(tmp_path)
@@ -33,11 +35,20 @@ def test_build_brief_review_prompt_preserves_start_boundary(
         "# Ralph Loop Operating Brief\n",
     )
 
+    assert "# Ralph Loop Init Brief Review" in prompt
     assert "Do not optimize the harness yet." in prompt
     assert "`RALPH_LOOP.md`" in prompt
     assert "`ralph-loop.json`" in prompt
+    assert "Do not copy full harness instruction" in prompt
+    assert "Harness reference file paths" in prompt
+    assert "File modification scope" in prompt
+    assert "AI behavior requirements" in prompt
     assert "python evaluate.py" in prompt
     assert "evaluate.py" in prompt
+    assert "Candidate evaluation files" not in prompt
+    assert "Relevant documentation" not in prompt
+    assert "Agent instruction files" not in prompt
+    assert "Maximum iterations" not in prompt
 
 
 def test_run_brief_review_with_fake_backend_preserves_harness_targets(
@@ -72,6 +83,42 @@ def test_run_brief_review_with_fake_backend_preserves_harness_targets(
         "VALUE = 1\n"
     )
     assert not (harness_path / "ralph_loop_runs").exists()
+
+
+def test_run_brief_review_streams_progress_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harness_path = _prepared_harness(tmp_path)
+    config = OptimizerConfig(harness_path=harness_path, goal="Improve the score.")
+    config_path = default_config_path(harness_path)
+    write_config(config, config_path)
+    _write(harness_path / "RALPH_LOOP.md", "# Brief\n")
+    stdout = StringIO()
+    backend = StreamingBackend()
+    monkeypatch.setattr(
+        "ralph_loop_optimizer.brief_review.get_backend",
+        lambda name: backend,
+    )
+
+    result = run_brief_review(
+        BriefReviewRequest(
+            config=config,
+            config_path=config_path,
+            summary=inspect_harness(harness_path),
+            brief="# Brief\n",
+        ),
+        progress=ProgressReporter(stdout=stdout, color=False),
+    )
+
+    output = stdout.getvalue()
+    assert result.succeeded is True
+    assert backend.saw_streaming_request is True
+    assert "[ralph-loop] Init AI review prompt" in output
+    assert "# Ralph Loop Init Brief Review" in output
+    assert "[ralph-loop] Calling backend for init AI review: fake" in output
+    assert "[agent event] fake: streamed init review output" in output
+    assert "[ralph-loop] Init AI review backend finished: exit code 0" in output
 
 
 def test_run_brief_review_refuses_dirty_target_file(tmp_path: Path) -> None:
@@ -176,6 +223,23 @@ class TargetEditingBackend:
             "VALUE = 3\n",
             encoding="utf-8",
         )
+        return BackendResult(backend_name=self.name, exit_code=0)
+
+
+class StreamingBackend:
+    name = "fake"
+
+    def __init__(self) -> None:
+        self.saw_streaming_request = False
+
+    def run_backend(self, request: BackendRequest) -> BackendResult:
+        self.saw_streaming_request = (
+            request.stream_output
+            and request.stdout_callback is not None
+            and request.stderr_callback is not None
+        )
+        if request.stdout_callback is not None:
+            request.stdout_callback("streamed init review output\n")
         return BackendResult(backend_name=self.name, exit_code=0)
 
 

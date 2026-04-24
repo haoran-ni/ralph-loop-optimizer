@@ -41,7 +41,7 @@ from ralph_loop_optimizer.git import (
     get_status,
     stage_paths,
 )
-from ralph_loop_optimizer.harness import get_worktree_status, read_harness_instructions
+from ralph_loop_optimizer.harness import get_worktree_status
 from ralph_loop_optimizer.lessons import LessonEvidence, distill_lesson
 from ralph_loop_optimizer.progress import ProgressReporter, relative_path
 
@@ -141,7 +141,6 @@ def run_iteration(
             prompt=prompt,
             phase="implementation",
             operating_brief=context.operating_brief,
-            harness_instructions=context.harness_instructions,
             prior_lessons=context.prior_lessons,
             latest_evaluation=context.latest_evaluation,
             timeout_seconds=state.config.command_timeout_seconds,
@@ -270,7 +269,6 @@ def run_iteration(
             prompt=lesson_prompt,
             phase="lesson_update",
             operating_brief=context.operating_brief,
-            harness_instructions=context.harness_instructions,
             prior_lessons=context.prior_lessons,
             latest_evaluation=evaluation_text,
             timeout_seconds=state.config.command_timeout_seconds,
@@ -353,7 +351,6 @@ def check_stopping_condition(state: RunState) -> bool:
 def _load_iteration_context(state: RunState) -> IterationContext:
     return IterationContext(
         operating_brief=load_operating_brief(state.run_paths.repo_path),
-        harness_instructions=read_harness_instructions(state.run_paths.repo_path),
         prior_lessons=tuple(load_prior_lessons(state.run_paths)),
         latest_evaluation=load_latest_evaluation(state.run_paths),
         worktree_status=get_worktree_status(state.run_paths.repo_path),

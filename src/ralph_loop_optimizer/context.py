@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from ralph_loop_optimizer.artifacts import IterationPaths, RunPaths
@@ -18,7 +18,6 @@ class ContextError(ValueError):
 @dataclass(frozen=True)
 class IterationContext:
     operating_brief: str
-    harness_instructions: dict[Path, str] = field(default_factory=dict)
     prior_lessons: tuple[str, ...] = ()
     latest_evaluation: str | None = None
     worktree_status: WorktreeStatus | None = None
@@ -106,10 +105,6 @@ def build_iteration_prompt(
         "",
         *_format_text_block(context.operating_brief),
         "",
-        "## Harness Instructions",
-        "",
-        *_format_harness_instructions(context.harness_instructions),
-        "",
         "## Prior Lessons",
         "",
         *_format_optional_items(context.prior_lessons, "No prior lessons recorded."),
@@ -131,7 +126,7 @@ def build_iteration_prompt(
         "more specific, you can only stop after fully implementing the code "
         "in this iteration and have finished the code review.",
         "",
-        "- Read the operating brief and harness instructions before editing.",
+        "- Read the operating brief before editing.",
         "- Make changes tied directly to the goal.",
         "- Do not change harness evaluation behavior unless the brief explicitly "
         "allows it.",
@@ -260,18 +255,6 @@ def _format_worktree_status(status: WorktreeStatus | None) -> list[str]:
     if not status.entries:
         return ["- Clean."]
     return ["- Uncommitted entries:", *[f"  - `{entry}`" for entry in status.entries]]
-
-
-def _format_harness_instructions(instructions: dict[Path, str]) -> list[str]:
-    if not instructions:
-        return ["No harness instruction files were loaded."]
-
-    lines: list[str] = []
-    for path, content in sorted(instructions.items(), key=lambda item: item[0].as_posix()):
-        lines.extend([f"### `{path.as_posix()}`", "", *_format_text_block(content), ""])
-    if lines and lines[-1] == "":
-        lines.pop()
-    return lines
 
 
 def _format_optional_items(items: tuple[str, ...], empty_message: str) -> list[str]:

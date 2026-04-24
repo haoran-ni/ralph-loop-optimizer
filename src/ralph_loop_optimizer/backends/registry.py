@@ -33,7 +33,6 @@ class FakeBackend:
                 f"Phase: {request.phase}",
                 f"Prompt characters: {len(request.prompt)}",
                 f"Operating brief characters: {len(request.operating_brief)}",
-                f"Harness instruction files: {len(request.harness_instructions)}",
                 f"Prior lessons: {len(request.prior_lessons)}",
                 "Latest evaluation provided: "
                 f"{'yes' if request.latest_evaluation is not None else 'no'}",

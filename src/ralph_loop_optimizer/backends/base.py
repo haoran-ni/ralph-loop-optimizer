@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Protocol
 
@@ -16,7 +16,6 @@ class BackendRequest:
     prompt: str
     phase: str = "implementation"
     operating_brief: str = ""
-    harness_instructions: dict[Path, str] = field(default_factory=dict)
     prior_lessons: tuple[str, ...] = ()
     latest_evaluation: str | None = None
     timeout_seconds: int | None = None

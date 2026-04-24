@@ -26,7 +26,7 @@ from ralph_loop_optimizer.config import (
     load_config,
     write_config,
 )
-from ralph_loop_optimizer.context import ContextError, load_operating_brief
+from ralph_loop_optimizer.context import ContextError
 from ralph_loop_optimizer.evaluation import EvaluationError
 from ralph_loop_optimizer.git import GitError, get_status
 from ralph_loop_optimizer.harness import HarnessError, inspect_harness
@@ -58,7 +58,8 @@ def build_parser() -> argparse.ArgumentParser:
         "init",
         help="inspect a harness and create RALPH_LOOP.md",
         description=(
-            "Inspect a local harness repository and create RALPH_LOOP.md "
+            "Inspect a local harness repository, create RALPH_LOOP.md, "
+            "optionally ask the configured backend to refine it, and stop "
             "without starting optimization."
         ),
     )
@@ -75,43 +76,34 @@ def build_parser() -> argparse.ArgumentParser:
     )
     init_parser.add_argument(
         "--evaluation-command",
-        help="optional harness evaluation command to capture in the brief",
+        help="optional harness evaluation command to capture in the starter config",
     )
     init_parser.add_argument(
         "--backend",
         default="fake",
-        help="coding backend to write into the starter config",
+        help="coding backend to use for init review and write into the starter config",
     )
     init_parser.add_argument(
         "--overwrite",
         action="store_true",
         help="replace an existing RALPH_LOOP.md and starter config",
     )
-    init_parser.set_defaults(func=cmd_init)
-
-    review_parser = subparsers.add_parser(
-        "review",
-        help="review and consolidate RALPH_LOOP.md before optimization",
-        description=(
-            "Use the configured backend to review RALPH_LOOP.md before any "
-            "optimization iterations start. The review boundary allows edits "
-            "only to RALPH_LOOP.md and the starter config file."
+    init_parser.add_argument(
+        "--skip-ai-review",
+        action="store_true",
+        help=(
+            "write the draft files without asking the configured backend to "
+            "refine RALPH_LOOP.md"
         ),
     )
-    review_parser.add_argument(
-        "--config",
-        required=True,
-        type=Path,
-        help="path to a Ralph Loop Optimizer JSON config file",
-    )
-    review_parser.set_defaults(func=cmd_review)
+    init_parser.set_defaults(func=cmd_init)
 
     run_parser = subparsers.add_parser(
         "run",
         help="run a bounded optimization loop from a config file",
         description=(
             "Run optimization iterations from a JSON config file. "
-            "Run init and review RALPH_LOOP.md before using this command."
+            "Run init and inspect or edit RALPH_LOOP.md before using this command."
         ),
     )
     run_parser.add_argument(
@@ -204,37 +196,35 @@ def cmd_init(args: argparse.Namespace) -> int:
 
     print(f"Created {brief_path}")
     print(f"Created {config_path}")
-    print(
-        "Optimization was not started. Review RALPH_LOOP.md and the starter "
-        "config before running."
-    )
-    return 0
+    if args.skip_ai_review:
+        print("Skipped AI review during init.")
+        print(
+            "Optimization was not started. Review RALPH_LOOP.md and the starter "
+            "config before running."
+        )
+        return 0
 
-
-def cmd_review(args: argparse.Namespace) -> int:
-    config_path = args.config.expanduser().resolve()
-    config = load_config(config_path)
-    summary = inspect_harness(config.harness_path)
     result = run_brief_review(
         BriefReviewRequest(
             config=config,
             config_path=config_path,
             summary=summary,
-            brief=load_operating_brief(summary.repo_path),
-        )
+            brief=content,
+        ),
+        progress=ProgressReporter(),
     )
-
-    print(f"Review backend: {result.backend_result.backend_name}")
-    print(f"Review succeeded: {'yes' if result.succeeded else 'no'}")
-    print(f"Brief: {result.brief_path}")
-    print(f"Config: {result.config_path}")
+    print(f"AI review backend: {result.backend_result.backend_name}")
+    print(f"AI review succeeded: {'yes' if result.succeeded else 'no'}")
     if result.changed_paths:
-        print("Changed review files:")
+        print("Changed init files:")
         for path in result.changed_paths:
             print(f"- {path.as_posix()}")
     else:
-        print("Changed review files: none")
-    print("Optimization was not started. Run explicitly when ready.")
+        print("Changed init files: none")
+    print(
+        "Optimization was not started. Review RALPH_LOOP.md and the starter "
+        "config before running."
+    )
     return 0 if result.succeeded else 1
 
 

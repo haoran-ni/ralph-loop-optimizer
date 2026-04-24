@@ -159,8 +159,9 @@ def test_toy_benchmark_can_be_initialized_as_harness(tmp_path: Path) -> None:
     assert config.harness_path == harness_path.resolve()
     assert config.evaluation_command == "python evaluate.py"
     brief = (harness_path / "RALPH_LOOP.md").read_text(encoding="utf-8")
-    assert "`evaluate.py`" in brief
-    assert "`AGENTS.md`" in brief
+    assert "- `<path>`: `<why this file matters>`" in brief
+    assert "`evaluate.py`" not in brief
+    assert "`AGENTS.md`" not in brief
     assert not (harness_path / "ralph_loop_runs").exists()
 
 

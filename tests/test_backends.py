@@ -41,7 +41,6 @@ def test_fake_backend_returns_normalized_success_result(tmp_path: Path) -> None:
         harness_path=tmp_path,
         prompt="Improve the strategy.",
         operating_brief="# Brief\n",
-        harness_instructions={Path("AGENTS.md"): "Use the harness rules.\n"},
         prior_lessons=("Iteration 001 improved score.",),
         latest_evaluation="score=10",
         timeout_seconds=30,
@@ -61,7 +60,6 @@ def test_fake_backend_returns_normalized_success_result(tmp_path: Path) -> None:
     assert "Fake backend completed" in result.stdout
     assert "Prompt characters: 21" in result.stdout
     assert "Operating brief characters: 8" in result.stdout
-    assert "Harness instruction files: 1" in result.stdout
     assert "Prior lessons: 1" in result.stdout
     assert "Latest evaluation provided: yes" in result.stdout
     assert result.elapsed_seconds is not None
