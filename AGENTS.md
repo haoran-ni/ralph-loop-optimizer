@@ -20,6 +20,7 @@ Ralph Loop Optimizer owns orchestration:
 
 - Inspecting the input harness repository.
 - Creating and maintaining the run-specific operating brief.
+- Creating and maintaining the starter optimizer configuration.
 - Selecting and invoking coding CLI backends.
 - Supplying iteration context to those backends.
 - Running or requesting harness evaluation.
@@ -66,14 +67,22 @@ Ralph Loop Optimizer starts with:
 At runtime, the optimizer should inspect the harness and create `RALPH_LOOP.md` at the harness repository root. This file is the run-specific operating brief. It should capture:
 
 - The user's optimization goal.
-- What the harness appears to do.
-- How evaluation appears to work.
-- Which files, commands, docs, or workflows seem relevant.
-- The expected iteration process.
-- Current assumptions and uncertainties.
-- Any questions the user should answer before optimization starts.
+- Harness reference file paths and short explanations of why they matter.
+- Working environment requirements and command wrappers for checks or evaluation.
+- File modification scope, constraints, and requirements.
+- AI behavior requirements for future optimization iterations.
+- Current assumptions, uncertainties, and questions the user should answer before optimization starts.
 
-After creating `RALPH_LOOP.md`, the optimizer should allow the conversation to continue until the user sends an explicit start message. Do not begin modifying the harness for optimization before that explicit approval.
+The optimizer should also create a starter `ralph-loop.json` at the harness root. This config is used by `ralph-loop run --config ...` and should include orchestration settings such as `harness_path`, `goal`, `backend`, `max_iterations`, `evaluation_command`, `run_artifact_dir`, `command_timeout_seconds`, and `resume_behavior`.
+
+The initial `RALPH_LOOP.md` draft should use placeholders rather than guessed file paths. Unless `--skip-ai-review` is used, `ralph-loop init` may call the configured backend to inspect the harness and refine `RALPH_LOOP.md` before optimization starts. This init-time review is still inside the explicit start boundary:
+
+- It may update `RALPH_LOOP.md`.
+- It may update `ralph-loop.json` only when configuration corrections are necessary.
+- It must not edit optimization target files, tests, evaluators, datasets, or harness behavior.
+- It must not create `ralph_loop_runs/` iteration artifacts.
+
+After initialization and any init-time review, the optimizer should stop. Do not begin modifying the harness for optimization before the user explicitly runs `ralph-loop run --config ...`. The user should review and commit `RALPH_LOOP.md`, `ralph-loop.json`, and any other approved harness changes before starting so the harness worktree is clean.
 
 # Iteration Lifecycle
 
@@ -86,10 +95,12 @@ Each optimization iteration should conceptually:
 5. Ask the selected coding CLI to attempt an improvement in the harness repository.
 6. Run or request the harness evaluation.
 7. Capture performance output, logs, diffs, and relevant artifacts.
-8. Distill lessons from the result.
-9. Save iteration artifacts under `ralph_loop_runs/`.
-10. Commit the experiment in the harness Git repository.
+8. Write the implementation prompt, evaluation output, diff, result record, and a seed lesson under `ralph_loop_runs/`.
+9. Ask the same coding CLI to update `lesson.md` from the implementation diff and evaluation feedback.
+10. Commit the completed iteration in the harness Git repository.
 11. Decide whether to continue based on configuration and results.
+
+Backends must not create Git commits. Ralph Loop Optimizer owns staging and the final iteration commit. Implementation prompts should also tell backends not to run the evaluation command themselves; the optimizer runs or records evaluation after the implementation phase.
 
 The optimizer should not invent domain instructions. Harness files, the user prompt, `RALPH_LOOP.md`, and accumulated lessons should drive the content of each iteration.
 
@@ -101,29 +112,38 @@ Prefer this layout:
 
 ```text
 RALPH_LOOP.md
+ralph-loop.json
 ralph_loop_runs/
   <run_id>/
-    config.*
+    config.json
     iterations/
       001/
         prompt.md
-        evaluation.*
+        lesson_prompt.md
+        evaluation.txt
         result.md
         lesson.md
-        diff.*
+        diff.patch
 ```
 
 The exact formats can evolve, but the responsibilities should stay clear:
 
 - `RALPH_LOOP.md` is the human-readable operating brief.
-- `ralph_loop_runs/` stores run history, evaluation outputs, logs, diffs, and lessons.
+- `ralph-loop.json` is the starter configuration used by `ralph-loop run`.
+- `ralph_loop_runs/` stores run history, prompts, evaluation outputs, logs, diffs, results, and lessons.
 - Git commits preserve experiment states for retrieval, comparison, and rollback.
 
 Before starting an optimization run, check whether the harness worktree has uncommitted user changes. Do not silently mix optimizer experiments with unrelated user edits.
 
 # Coding CLI Support
 
-The optimizer should support popular coding CLIs such as Codex, opencode, and Claude Code.
+The current backend adapters are:
+
+- `fake`: deterministic backend for dry runs and tests; it does not call an AI model.
+- `codex`: Codex CLI backend using non-interactive `codex exec`.
+- `claude`: Claude Code backend using non-interactive `claude --print`.
+
+Do not describe unsupported backends as implemented. `opencode` is a reasonable future backend, but it should only be documented as supported after an adapter and tests exist.
 
 Keep CLI-specific behavior isolated behind adapters or similarly narrow integration boundaries. Core orchestration should pass the same conceptual inputs to each backend:
 
@@ -166,6 +186,8 @@ Configuration should cover orchestration concerns, such as:
 
 Keep domain-specific settings inside the harness unless the optimizer needs them to orchestrate the loop. Model search spaces, poker simulation parameters, benchmark settings, and scoring details should usually belong to the harness.
 
+Current config files are JSON and are usually written to `ralph-loop.json` at the harness root during `init`. Per-run snapshots are written to `ralph_loop_runs/<run_id>/config.json`.
+
 # Example Harness Guidelines
 
 Example harnesses should live under an `examples/` directory when they are added.
@@ -179,6 +201,33 @@ Good examples:
 - A toy benchmark that runs quickly and demonstrates the full loop.
 
 Prefer examples that are deterministic, fast, and easy to inspect. Do not make the first examples heavy just to appear realistic.
+
+Current example harnesses:
+
+- `examples/toy-benchmark/`: dependency-free deterministic benchmark where the editable target is `strategy.py`.
+- `examples/cifar10-cnn/`: PyTorch and torchvision CIFAR-10 harness where editable targets are `model.py` and `train_config.py`.
+
+# Development Commands
+
+Use these commands when working on this repository:
+
+```bash
+python -m pip install -e ".[dev]"
+python -m pytest
+python -m pytest tests/test_real_cli_availability.py
+RALPH_LOOP_RUN_REAL_AI_CLI=1 python -m pytest tests/test_real_cli_backends.py
+```
+
+The opt-in real CLI backend tests call installed AI CLIs and ask them to edit temporary harnesses. Do not run them by default unless the task specifically concerns real backend behavior or the user asks for that coverage.
+
+# Current Implementation Limits
+
+Keep these limits in mind during implementation:
+
+- There is no standalone public `ralph-loop review` command. Init-time AI review is part of `ralph-loop init` unless `--skip-ai-review` is passed.
+- There is no opencode backend adapter yet.
+- There is no automatic metric extraction or target-based stopping condition yet.
+- There is no hosted runner, remote push, pull request creation, or leaderboard integration yet.
 
 # Desired Behavior From Coding Agents
 

@@ -1,101 +1,137 @@
 # Ralph Loop Optimizer
 
-Ralph Loop Optimizer is a framework for running repeated AI-driven improvement cycles over a user-provided harness repository.
+[This repo is an early open-source framework for iterative agentic optimization.]
 
-Instead of using a Ralph loop only to complete a sequence of tasks, this project treats each Ralph iteration as one optimization step. A coding agent reviews the objective, the harness, prior attempts, evaluation results, and lessons learned, then proposes or implements the next experiment. The harness evaluates that experiment and produces performance feedback. The next iteration uses that feedback to search for a better strategy.
+Ralph Loop Optimizer is an all-purpose optimizer for programmable strategies,
+architectures, policies, prompts, and workflows. It turns any local Git
+repository with an evaluation command into an AI-driven improvement loop.
 
-The goal is to help optimize policies, strategies, models, workflows, or agent behaviors when there is an external evaluation system that can measure progress.
+Use it for problems where progress can be measured but the next improvement is
+hard to hand-design: ML model architecture self-improvement, financial strategy
+development, quantum circuit optimization, agent policy tuning, benchmarked
+solver refinement, prompt iteration, simulation-driven design, or any other
+programmable system with repeatable feedback.
 
-Example use cases include:
+Give it a harness repository and an optimization goal. It prepares an operating
+brief, asks a coding CLI to make one focused improvement, runs the harness
+evaluation, records the result and lesson, commits the iteration, and repeats
+until the configured iteration limit is reached.
 
-- Optimizing an ML model architecture inside a training and evaluation workflow.
-- Improving a poker bot's betting behavior inside a game simulation harness.
-- Iterating on a benchmarked strategy, solver, policy, or workflow.
-- Running experiments against a leaderboard, simulation environment, or automated scoring pipeline.
+For suitable harnesses, that means you can go AFK while the AI iteratively
+self-improves your strategy, architecture, or workflow against the feedback loop
+you defined.
 
-## Core Idea
+## What It Optimizes
 
-Ralph Loop Optimizer owns the orchestration loop:
+Ralph Loop Optimizer owns orchestration. Your harness owns the domain.
 
-- Read the user's optimization goal.
-- Inspect the harness repository.
-- Build an iteration brief.
-- Run a selected coding CLI, such as Codex or Claude Code.
-- Run the harness evaluation.
-- Call the coding CLI again to update concise lessons from the diff and
-  evaluation feedback.
-- Save results, logs, diffs, prompts, and lessons.
-- Commit completed iterations so they can be retrieved later.
-- Continue until the configured limit or target is reached.
+The optimizer handles:
 
-The harness owns the domain behavior:
+- creating `RALPH_LOOP.md` and `ralph-loop.json`
+- calling a coding backend such as Codex CLI or Claude Code
+- running or recording evaluation
+- saving prompts, outputs, diffs, results, and lessons
+- committing completed iterations in the harness repository
+- resuming recorded runs
 
-- Training models.
-- Running simulations.
-- Evaluating performance.
-- Producing benchmark, metric, leaderboard, or test output.
-- Defining what improvement means in that domain.
+The harness handles:
 
-This separation is intentional. Ralph Loop Optimizer should not need to know whether the harness is written in Python, JavaScript, C++, shell scripts, notebooks, or another toolchain. It only needs enough information to modify the harness, run its evaluation, understand the result, and carry lessons forward.
+- the code, policy, model, prompt, strategy, or workflow being improved
+- setup and dependency instructions
+- scoring, tests, simulations, training, or benchmark logic
+- the definition of success for the domain
+- boundaries for what the AI may edit
 
-## Expected Harness System
+The optimizer does not require a fixed metric schema. Evaluation output can be
+plain logs, JSON, Markdown, CSV, test output, benchmark tables, generated files,
+or any other text that is visible and useful for comparison.
 
-An input harness should be a local Git repository. It can be backed by GitHub or another remote, but Git history must be enabled so each experiment can be committed and recovered.
+## Requirements
 
-The harness should provide:
+- Python 3.11 or newer
+- Git
+- a local harness repository at its Git root
+- optionally, Codex CLI or Claude Code for real AI-backed iterations
 
-- Code, configuration, prompts, or workflow files that an AI coding agent can modify.
-- One or more evaluation commands, scripts, functions, tests, benchmarks, or workflows.
-- Performance output that can be compared across iterations.
-- Setup instructions that explain how to install dependencies and run the evaluation.
-- Domain instructions that describe what should be optimized and what should not be changed.
+The package has no runtime Python dependencies. Development and tests use
+`pytest`.
 
-Ralph Loop Optimizer does not require a fixed evaluation output schema. A harness may print terminal logs, write JSON, write Markdown, emit CSV files, generate leaderboard tables, produce model metrics, or output custom reports.
+## Install
 
-Structured outputs are recommended because they are easier to compare. Good
-options include JSON, Markdown summaries, CSV metric tables, or clearly
-labeled log sections. However, any format is acceptable if the output is
-visible, repeatable enough to compare, and understandable to an LLM.
+From this repository:
 
-For best results, the harness evaluation command should emit concise text that
-directly states the current performance metrics on success, or a concise
-failure message on error. Ralph Loop Optimizer uses that summary text in
-iteration records, lessons, and commit messages.
+```bash
+python -m pip install -e ".[dev]"
+```
 
-## Workflow
+Check the CLI:
 
-The intended workflow is:
+```bash
+ralph-loop --help
+ralph-loop backends
+```
 
-1. The user provides a harness repository directory.
-2. The user provides a prompt describing what they want to optimize.
-3. Ralph Loop Optimizer validates the harness and creates a placeholder `RALPH_LOOP.md` plus a starter `ralph-loop.json` config in the harness repository.
-4. Unless `--skip-ai-review` is passed, `init` calls the configured backend to inspect the harness and refine `RALPH_LOOP.md` without starting optimization.
-5. The user reviews or edits `RALPH_LOOP.md` and `ralph-loop.json`, especially `backend`, `max_iterations`, `evaluation_command`, and `command_timeout_seconds`.
-6. The user commits the reviewed harness state, including `RALPH_LOOP.md` and
-   any approved config changes, so the harness worktree is clean.
-7. The optimizer waits for an explicit `ralph-loop run --config ...` command.
-8. Each iteration runs a coding CLI against the harness, evaluates the result,
-   calls the coding CLI again to update `lesson.md`, and then Ralph Loop
-   Optimizer stages and commits the code and Ralph Loop artifacts itself.
+## Quick Start
 
-`RALPH_LOOP.md` is the run-specific operating brief. It should capture:
+The repository includes a deterministic toy benchmark that can be copied into a
+separate harness repository. The example uses the `fake` backend, which exercises
+the optimizer flow without calling an AI model or editing target files.
 
-- The user's optimization goal.
-- Harness reference file paths and short explanations.
-- Working environment notes, dependency clues, and command wrappers for local
-  checks or evaluation.
-- File modification scope, constraints, and requirements.
-- AI behavior requirements for future optimization iterations.
+```bash
+python -m pip install -e ".[dev]"
 
-The initial draft uses placeholders rather than guessed file paths. The
-init-time AI review, or the user, should fill in harness reference files and
-working environment details only after inspecting the repository.
+HARNESS_DIR="$(mktemp -d)/toy-benchmark-harness"
+cp -R examples/toy-benchmark "$HARNESS_DIR"
+cd "$HARNESS_DIR"
 
-Optimization should not begin until the user explicitly confirms that the loop should start.
+git init
+git add .
+git -c user.name="Ralph Loop Demo" \
+  -c user.email="ralph-loop-demo@example.com" \
+  commit -m "initial toy benchmark harness"
 
-## Command Reference
+python evaluate.py
+```
 
-Inspect a harness, write the starter files, and ask the configured backend to refine `RALPH_LOOP.md` without starting optimization:
+Initialize Ralph Loop Optimizer against the copied harness:
+
+```bash
+ralph-loop init \
+  --harness "$HARNESS_DIR" \
+  --goal "Improve the deterministic toy benchmark score." \
+  --evaluation-command "python evaluate.py" \
+  --backend fake
+```
+
+This creates:
+
+```text
+RALPH_LOOP.md
+ralph-loop.json
+```
+
+Review those files, then commit them before starting the run:
+
+```bash
+git add RALPH_LOOP.md ralph-loop.json
+git commit -m "prepare Ralph Loop run"
+```
+
+Run one configured optimization loop:
+
+```bash
+ralph-loop status --harness "$HARNESS_DIR"
+ralph-loop run --config "$HARNESS_DIR/ralph-loop.json"
+ralph-loop status --harness "$HARNESS_DIR"
+```
+
+The fake backend is useful for verifying artifact creation, evaluation capture,
+lesson updates, and Git commits. To make actual AI edits, use `--backend codex`
+or `--backend claude` after installing and configuring the corresponding CLI.
+
+## Lifecycle
+
+### 1. Initialize
 
 ```bash
 ralph-loop init \
@@ -105,7 +141,12 @@ ralph-loop init \
   --backend fake
 ```
 
-Skip the AI review during init when only the mechanical draft is needed:
+`init` writes a starter operating brief and config without starting
+optimization. By default it also asks the selected backend to review the brief
+inside the init boundary. That review may only leave `RALPH_LOOP.md` and
+`ralph-loop.json` dirty.
+
+Use `--skip-ai-review` when you only want the mechanical starter files:
 
 ```bash
 ralph-loop init \
@@ -116,191 +157,162 @@ ralph-loop init \
   --skip-ai-review
 ```
 
-Start the optimization loop explicitly:
+Use `--overwrite` only when replacing existing starter files intentionally.
+
+### 2. Review And Commit
+
+Before running optimization, review:
+
+- `RALPH_LOOP.md`: goal, relevant harness files, environment notes, edit scope,
+  AI behavior requirements, and open questions
+- `ralph-loop.json`: backend, max iterations, evaluation command, artifact
+  directory, timeout, and resume behavior
+
+The harness worktree must be clean before `run` or `resume`. Commit the reviewed
+starter files in the harness repository.
+
+### 3. Run
 
 ```bash
 ralph-loop run --config /path/to/harness/ralph-loop.json
 ```
 
-Resume a recorded run:
+Each iteration:
 
-```bash
-ralph-loop resume --harness /path/to/harness --run-id run-YYYYMMDDTHHMMSSffffffZ
-```
+1. loads the operating brief, prior lessons, latest evaluation, and worktree
+   status
+2. sends one implementation prompt to the configured backend
+3. runs the configured evaluation command, or records manual evaluation mode
+4. captures the implementation diff
+5. writes iteration artifacts
+6. sends a lesson-update prompt to the same backend
+7. stages and commits the completed iteration in the harness repository
 
-Inspect a harness and recorded runs without starting optimization:
+Backends are instructed not to commit. Ralph Loop Optimizer owns staging and the
+final iteration commit.
+
+### 4. Inspect Or Resume
+
+Inspect a harness and its recorded runs:
 
 ```bash
 ralph-loop status --harness /path/to/harness
 ralph-loop status --harness /path/to/harness --run-id run-YYYYMMDDTHHMMSSffffffZ
 ```
 
-List configured backends:
+Resume a recorded run:
 
 ```bash
-ralph-loop backends
+ralph-loop resume \
+  --harness /path/to/harness \
+  --run-id run-YYYYMMDDTHHMMSSffffffZ
 ```
+
+Resume validates the run artifacts, requires a clean worktree, restores `HEAD`
+to the last completed iteration commit when needed, and continues from the next
+safe iteration number.
+
+## Configuration
+
+`ralph-loop init` writes `ralph-loop.json` at the harness root.
+
+Example:
+
+```json
+{
+  "harness_path": "/absolute/path/to/harness",
+  "goal": "Improve the deterministic toy benchmark score.",
+  "backend": "fake",
+  "max_iterations": 1,
+  "evaluation_command": "python evaluate.py",
+  "run_artifact_dir": "ralph_loop_runs",
+  "command_timeout_seconds": null,
+  "resume_behavior": "refuse_dirty"
+}
+```
+
+Fields:
+
+- `harness_path`: absolute path to the harness Git repository root
+- `goal`: optimization objective passed into iteration prompts
+- `backend`: `fake`, `codex`, or `claude`
+- `max_iterations`: maximum iterations for `run` or `resume`
+- `evaluation_command`: shell command run from the harness root after each
+  implementation attempt; omit for manual evaluation mode
+- `run_artifact_dir`: relative directory for run history
+- `command_timeout_seconds`: optional timeout for backend and evaluation
+  commands
+- `resume_behavior`: current resume policy setting
+
+Use the same command wrapper you would use manually in the harness, such as
+`uv run`, `poetry run`, `.venv/bin/python`, or `conda run -n <env>`.
+
+Keep domain-specific settings inside the harness unless the optimizer needs
+them for orchestration.
 
 ## Generated Artifacts
 
-Ralph Loop Optimizer is expected to create visible run artifacts inside the harness repository.
-
-The preferred layout is:
+Run artifacts are written inside the harness repository:
 
 ```text
 RALPH_LOOP.md
 ralph-loop.json
 ralph_loop_runs/
   <run_id>/
-    config.*
+    config.json
     iterations/
       001/
         prompt.md
         lesson_prompt.md
-        evaluation.*
+        evaluation.txt
         result.md
         lesson.md
-        diff.*
+        diff.patch
 ```
 
-The exact filenames and formats may evolve, but the purpose should remain stable:
+Artifact roles:
 
-- `RALPH_LOOP.md` is the human-readable operating brief.
-- `ralph-loop.json` is the starter configuration used by `ralph-loop run`.
-- `ralph_loop_runs/` stores iteration prompts, evaluation outputs, diffs,
-  results, and lessons.
-- Git commits preserve each completed iteration so users can inspect, compare,
-  revert, or reuse work.
+- `RALPH_LOOP.md`: human-readable operating brief for the run
+- `ralph-loop.json`: starter config used by `run`
+- `prompt.md`: implementation prompt sent to the backend
+- `lesson_prompt.md`: post-evaluation lesson-update prompt
+- `evaluation.txt`: captured evaluation result
+- `result.md`: normalized iteration summary
+- `lesson.md`: compact lesson for later iterations
+- `diff.patch`: captured implementation diff
 
-## Configuration
-
-`ralph-loop init` writes a starter `ralph-loop.json` in the harness repository. Review it before running optimization.
-
-Common fields:
-
-- `harness_path`: absolute path to the harness Git repository root.
-- `goal`: the optimization objective.
-- `backend`: `fake`, `codex`, or `claude`.
-- `max_iterations`: maximum number of optimization attempts for `run` or `resume`.
-- `evaluation_command`: optional command to run after each backend attempt. If omitted, the iteration records that manual evaluation is required.
-- `run_artifact_dir`: relative directory for run history, usually `ralph_loop_runs`.
-- `command_timeout_seconds`: optional timeout for backend and evaluation commands.
-- `resume_behavior`: current resume policy setting.
-
-Domain-specific configuration should usually stay inside the harness. For example, model search spaces, poker simulation settings, or benchmark-specific parameters belong with the harness unless the optimizer needs them to orchestrate the loop.
-
-## Example Harnesses
-
-This repository includes example harness folders that demonstrate how external systems connect to the optimizer.
-
-Example harness folders in this repository are templates. The optimizer requires the harness path itself to be a local Git repository root, so run an example by copying it into a separate directory and initializing Git there. Do not point `--harness` directly at a subfolder inside this optimizer repository.
-
-## Quick Start With Toy Benchmark
-
-Install the package from this repository:
-
-```bash
-python -m pip install -e ".[dev]"
-```
-
-Copy the deterministic toy benchmark into its own Git repository:
-
-```bash
-HARNESS_DIR="$(mktemp -d)/toy-benchmark-harness"
-cp -R examples/toy-benchmark "$HARNESS_DIR"
-cd "$HARNESS_DIR"
-git init
-git add .
-git -c user.name="Ralph Loop Demo" \
-  -c user.email="ralph-loop-demo@example.com" \
-  commit -m "initial toy benchmark harness"
-python evaluate.py
-```
-
-Then initialize the optimizer against the copied harness repository:
-
-```bash
-ralph-loop init \
-  --harness "$HARNESS_DIR" \
-  --goal "Improve the deterministic toy benchmark score." \
-  --evaluation-command "python evaluate.py" \
-  --backend fake
-```
-
-This writes:
-
-```text
-$HARNESS_DIR/RALPH_LOOP.md
-$HARNESS_DIR/ralph-loop.json
-```
-
-Review and edit `$HARNESS_DIR/RALPH_LOOP.md` and `$HARNESS_DIR/ralph-loop.json` before starting. The most common config fields to change are:
-
-- `backend`: use `fake` for deterministic dry runs, or `codex` / `claude` when those CLIs are installed.
-- `max_iterations`: the maximum number of optimization attempts.
-- `evaluation_command`: the harness command that produces performance feedback,
-  including any environment wrapper such as `uv run`, `poetry run`,
-  `.venv/bin/python`, or `conda run -n <env>` when required.
-- `command_timeout_seconds`: optional timeout for backend and evaluation commands.
-
-Before `ralph-loop run`, commit the reviewed harness state so the harness
-worktree is clean. This includes `RALPH_LOOP.md`, `ralph-loop.json`, and any
-other user-approved harness changes.
-
-Check the pre-run state:
-
-```bash
-ralph-loop status --harness "$HARNESS_DIR"
-ralph-loop backends
-```
-
-Commit the reviewed harness state before running the loop:
-
-```bash
-git add RALPH_LOOP.md ralph-loop.json
-git commit -m "prepare Ralph Loop run"
-```
-
-Start optimization explicitly:
-
-```bash
-ralph-loop run --config "$HARNESS_DIR/ralph-loop.json"
-ralph-loop status --harness "$HARNESS_DIR"
-```
-
-Generated files such as `RALPH_LOOP.md`, `ralph_loop_runs/`, and iteration commits are written to the copied harness repository, not to this optimizer repository.
-
-The `fake` backend does not modify the harness target files. It is useful for
-checking the orchestration flow, artifact creation, evaluation capture, lesson
-updates, and package-managed Git commits before using a real AI backend.
-
-Current examples:
-
-- `examples/toy-benchmark/`: a dependency-free deterministic benchmark where the optimizer improves a binary decision strategy by editing `strategy.py`.
-- `examples/cifar10-cnn/`: a PyTorch and torchvision CIFAR-10 harness where the optimizer improves a small CNN by editing `model.py` and `train_config.py`.
+Each completed iteration is committed in the harness repository with its
+artifacts.
 
 ## Backends
 
-The current real coding backends are:
-
-- `codex`: runs the Codex CLI in non-interactive exec mode.
-- `claude`: runs Claude Code in non-interactive print mode.
-
-The `fake` backend remains available for deterministic dry runs and automated tests. It exercises the optimizer loop without calling an AI model or editing target files.
-
-Use `ralph-loop backends` to print the backend names accepted by the installed package.
-
-## Current Status
-
-This repository now has a Python package scaffold, CLI entry point, configuration model, harness inspection, `init` command with starter config generation and optional AI brief refinement, backend adapters, evaluation capture, artifact writing, Git commit handling, bounded `run`, `resume`, `status`, and backend listing.
-
-## Development
-
-Install the package with development dependencies:
+List installed backend names accepted by the package:
 
 ```bash
-python -m pip install -e ".[dev]"
+ralph-loop backends
 ```
+
+Current backends:
+
+- `fake`: deterministic test backend; does not call an AI model
+- `codex`: runs Codex CLI with `codex exec`
+- `claude`: runs Claude Code with `claude --print`
+
+The real backend adapters pass prompts through stdin, stream progress during
+interactive CLI runs, and capture stdout, stderr, exit code, and elapsed time.
+
+## Example Harnesses
+
+Example folders are templates. Copy an example into its own Git repository
+before using it as a harness.
+
+- `examples/toy-benchmark/`: dependency-free deterministic benchmark. The
+  editable target is `strategy.py`; `evaluate.py` owns scoring.
+- `examples/cifar10-cnn/`: PyTorch and torchvision CIFAR-10 harness. Editable
+  targets are `model.py` and `train_config.py`; `evaluate.py` owns data loading,
+  training, and scoring. This example downloads CIFAR-10 into `data/`.
+
+## Development
 
 Run the test suite:
 
@@ -308,20 +320,34 @@ Run the test suite:
 python -m pytest
 ```
 
-Check the CLI help:
-
-```bash
-python -m ralph_loop_optimizer.cli --help
-```
-
-Run the real CLI availability checks:
+Run only real CLI availability checks:
 
 ```bash
 python -m pytest tests/test_real_cli_availability.py
 ```
 
-Run the opt-in tests that ask the installed AI CLIs to edit a temporary harness:
+Run opt-in tests that ask installed AI CLIs to edit a temporary harness:
 
 ```bash
 RALPH_LOOP_RUN_REAL_AI_CLI=1 python -m pytest tests/test_real_cli_backends.py
 ```
+
+## Current Status
+
+Implemented:
+
+- `init`, `run`, `resume`, `status`, and `backends` commands
+- starter config generation
+- init-time backend review inside the explicit start boundary
+- fake, Codex CLI, and Claude Code backends
+- command and manual evaluation modes
+- artifact recording, lesson updates, diff capture, and Git commits
+- deterministic toy example and CIFAR-10 example
+- automated tests for the core lifecycle
+
+Not implemented:
+
+- hosted execution or remote job management
+- opencode backend adapter
+- automatic metric extraction or target-based stopping
+- remote push, pull request creation, or leaderboard integration
