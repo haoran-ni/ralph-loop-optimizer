@@ -1,0 +1,4 @@
+yfinance>=0.2
+pandas>=2
+numpy>=1.26
+

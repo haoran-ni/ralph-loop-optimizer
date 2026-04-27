@@ -14,6 +14,7 @@ from ralph_loop_optimizer.config import load_config
 EXAMPLES_DIR = Path(__file__).resolve().parents[1] / "examples"
 CIFAR10_EXAMPLE_DIR = EXAMPLES_DIR / "cifar10-cnn"
 TOY_EXAMPLE_DIR = EXAMPLES_DIR / "toy-benchmark"
+US_STOCK_EXAMPLE_DIR = EXAMPLES_DIR / "us-stock-strategy"
 
 
 def test_cifar10_cnn_example_has_expected_files() -> None:
@@ -163,6 +164,58 @@ def test_toy_benchmark_can_be_initialized_as_harness(tmp_path: Path) -> None:
     assert "`evaluate.py`" not in brief
     assert "`AGENTS.md`" not in brief
     assert not (harness_path / "ralph_loop_runs").exists()
+
+
+def test_us_stock_strategy_example_has_expected_files() -> None:
+    expected_files = {
+        ".gitignore",
+        "AGENTS.md",
+        "README.md",
+        "evaluate.py",
+        "requirements.txt",
+        "strategy.py",
+    }
+
+    assert {
+        path.name for path in US_STOCK_EXAMPLE_DIR.iterdir() if path.is_file()
+    } == expected_files
+    assert (US_STOCK_EXAMPLE_DIR / "tests" / "test_backtest.py").is_file()
+
+
+def test_us_stock_strategy_example_documents_edit_boundaries() -> None:
+    instructions = (US_STOCK_EXAMPLE_DIR / "AGENTS.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "`strategy.py`" in instructions
+    assert "Do not edit:" in instructions
+    assert "`evaluate.py`" in instructions
+    assert "Yahoo Finance OHLCV" in instructions
+    assert "next trading day's open" in instructions
+
+
+def test_us_stock_strategy_python_files_are_parseable() -> None:
+    for path in [
+        US_STOCK_EXAMPLE_DIR / "evaluate.py",
+        US_STOCK_EXAMPLE_DIR / "strategy.py",
+        US_STOCK_EXAMPLE_DIR / "tests" / "test_backtest.py",
+    ]:
+        ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+
+
+def test_us_stock_strategy_backtest_tests_run_from_repo_root() -> None:
+    env = os.environ.copy()
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "examples/us-stock-strategy/tests"],
+        cwd=EXAMPLES_DIR.parent,
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def _run_toy_evaluation() -> subprocess.CompletedProcess[str]:

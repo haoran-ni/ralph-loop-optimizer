@@ -336,6 +336,10 @@ before using it as a harness.
 - `examples/cifar10-cnn/`: PyTorch and torchvision CIFAR-10 harness. Editable
   targets are `model.py` and `train_config.py`; `evaluate.py` owns data loading,
   training, and scoring. This example downloads CIFAR-10 into `data/`.
+- `examples/us-stock-strategy/`: yfinance-based US stock trading harness.
+  Editable target is `strategy.py`; `evaluate.py` owns Yahoo Finance data
+  caching, next-open trade execution, portfolio accounting, buy-and-hold
+  comparison, and financial metrics.
 
 ## Development
 
@@ -367,7 +371,7 @@ Implemented:
 - fake, Codex CLI, and Claude Code backends
 - command and manual evaluation modes
 - artifact recording, lesson updates, diff capture, and Git commits
-- deterministic toy example and CIFAR-10 example
+- deterministic toy, CIFAR-10, and US stock strategy examples
 - automated tests for the core lifecycle
 
 Not implemented:

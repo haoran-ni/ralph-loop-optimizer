@@ -206,6 +206,7 @@ Current example harnesses:
 
 - `examples/toy-benchmark/`: dependency-free deterministic benchmark where the editable target is `strategy.py`.
 - `examples/cifar10-cnn/`: PyTorch and torchvision CIFAR-10 harness where editable targets are `model.py` and `train_config.py`.
+- `examples/us-stock-strategy/`: yfinance-based US stock strategy harness where the editable target is `strategy.py`.
 
 # Development Commands
 
