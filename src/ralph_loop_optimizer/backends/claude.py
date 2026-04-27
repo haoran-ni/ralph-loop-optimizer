@@ -43,5 +43,5 @@ def build_claude_command(request: BackendRequest) -> list[str]:
         "stream-json" if request.stream_output else "text",
     ]
     if request.stream_output:
-        command.extend(["--include-partial-messages", "--include-hook-events"])
+        command.append("--verbose")
     return command

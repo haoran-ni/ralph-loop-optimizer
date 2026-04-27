@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TextIO
 
@@ -140,6 +141,8 @@ def _agent_event_kind(message: str) -> str:
         return "action"
     if " is thinking" in message or " is working" in message:
         return "thinking"
+    if message.startswith("claude is rate limited"):
+        return "thinking"
     if " session started" in message or " turn completed" in message:
         return "thinking"
     return "event"
@@ -164,6 +167,11 @@ class BackendEventFormatter:
         self.backend_name = backend_name
         self._show_next_git_diff = False
         self._active_git_diff_commands: set[str] = set()
+        self._claude_stream_blocks: dict[int | str, _ClaudeStreamBlock] = {}
+        self._claude_seen_system_events: set[str] = set()
+        self._claude_seen_status_lines: set[str] = set()
+        self._claude_seen_action_lines: set[str] = set()
+        self._claude_seen_text_lines: set[str] = set()
 
     def format_chunk(self, chunk: str) -> list[str]:
         lines: list[str] = []
@@ -181,12 +189,14 @@ class BackendEventFormatter:
     def _format_event(self, event: dict[str, object]) -> list[str]:
         if self.backend_name == "claude":
             formatted = self._format_claude_event(event)
+            if formatted is not None:
+                return formatted
         elif self.backend_name == "codex":
             formatted = self._format_codex_event(event)
+            if formatted:
+                return formatted
         else:
             formatted = []
-        if formatted:
-            return formatted
 
         event_type = _string_value(event, "type") or _string_value(event, "event")
         text = _first_text(event, ("text", "message", "content", "result"))
@@ -197,23 +207,37 @@ class BackendEventFormatter:
             return [f"{self.backend_name} event: {event_type}"]
         return [f"{self.backend_name} event: {json.dumps(event, sort_keys=True)}"]
 
-    def _format_claude_event(self, event: dict[str, object]) -> list[str]:
+    def _format_claude_event(self, event: dict[str, object]) -> list[str] | None:
         event_type = _string_value(event, "type")
         if event_type == "system":
             subtype = _string_value(event, "subtype")
+            system_key = subtype or "system"
+            if system_key in self._claude_seen_system_events:
+                return []
+            self._claude_seen_system_events.add(system_key)
             return [f"claude session started{subtype and f' ({subtype})' or ''}"]
+        if event_type == "rate_limit_event":
+            return self._dedupe_claude_lines(["claude is rate limited; waiting"])
         if event_type == "assistant":
             message = event.get("message")
             if not isinstance(message, dict):
                 return ["claude assistant message"]
-            return _format_claude_content(message.get("content"))
+            return self._dedupe_claude_lines(
+                _format_claude_content(message.get("content"))
+            )
         if event_type == "user":
             message = event.get("message")
             if isinstance(message, dict):
                 content_lines = _format_claude_content(message.get("content"))
                 if content_lines:
-                    return [f"claude tool/user event: {line}" for line in content_lines]
-            return ["claude tool/user event"]
+                    if all(line == "claude tool result" for line in content_lines):
+                        return ["claude action completed"]
+                    return [
+                        f"claude tool/user event: {line}" for line in content_lines
+                    ]
+            return []
+        if event_type == "stream_event":
+            return self._format_claude_stream_event(event)
         if event_type == "result":
             result = _string_value(event, "result")
             subtype = _string_value(event, "subtype")
@@ -226,7 +250,7 @@ class BackendEventFormatter:
             if result:
                 parts.append(f": {result}")
             return [" ".join(parts)]
-        return []
+        return None
 
     def _format_codex_event(self, event: dict[str, object]) -> list[str]:
         event_type = _string_value(event, "type")
@@ -310,6 +334,123 @@ class BackendEventFormatter:
             self._active_git_diff_commands.clear()
             return True
         return False
+
+    def _format_claude_stream_event(self, event: dict[str, object]) -> list[str]:
+        nested = _first_mapping(event, ("event", "stream_event", "data", "payload"))
+        if nested is None:
+            return []
+
+        nested_type = _string_value(nested, "type") or _string_value(nested, "event")
+        if nested_type == "rate_limit_event":
+            return self._dedupe_claude_lines(["claude is rate limited; waiting"])
+        if nested_type == "error":
+            message = _first_text(nested, ("message", "error"))
+            return [f"claude error: {message or 'unknown error'}"]
+        if nested_type == "content_block_start":
+            return self._start_claude_content_block(nested)
+        if nested_type == "content_block_delta":
+            return self._update_claude_content_block(nested)
+        if nested_type == "content_block_stop":
+            return self._stop_claude_content_block(nested)
+        return []
+
+    def _start_claude_content_block(self, event: dict[str, object]) -> list[str]:
+        content_block = event.get("content_block")
+        if not isinstance(content_block, dict):
+            return []
+
+        block_type = _string_value(content_block, "type")
+        key = _claude_block_key(event, content_block)
+        if key is not None:
+            self._claude_stream_blocks[key] = _ClaudeStreamBlock(
+                block_type=block_type,
+                name=_string_value(content_block, "name"),
+                input_value=content_block.get("input"),
+                text_fragments=[
+                    text
+                    for text in (_string_value(content_block, "text"),)
+                    if text
+                ],
+            )
+
+        if block_type in {"thinking", "redacted_thinking"}:
+            return self._dedupe_claude_lines(["claude is thinking"])
+        return []
+
+    def _update_claude_content_block(self, event: dict[str, object]) -> list[str]:
+        key = _claude_block_key(event)
+        block = self._claude_stream_blocks.get(key) if key is not None else None
+        delta = event.get("delta")
+        if not isinstance(delta, dict):
+            return []
+
+        delta_type = _string_value(delta, "type")
+        if delta_type == "thinking_delta":
+            return self._dedupe_claude_lines(["claude is thinking"])
+        if block is None:
+            return []
+        if delta_type == "input_json_delta":
+            fragment = _string_value(delta, "partial_json")
+            if fragment:
+                block.input_fragments.append(fragment)
+        elif delta_type == "text_delta":
+            text = _string_value(delta, "text")
+            if text:
+                block.text_fragments.append(text)
+        return []
+
+    def _stop_claude_content_block(self, event: dict[str, object]) -> list[str]:
+        key = _claude_block_key(event)
+        if key is None:
+            return []
+        block = self._claude_stream_blocks.pop(key, None)
+        if block is None:
+            return []
+        if block.block_type in {"thinking", "redacted_thinking"}:
+            return []
+        if block.block_type == "tool_use":
+            input_value = block.input_value
+            if block.input_fragments:
+                parsed = _parse_json_object("".join(block.input_fragments))
+                if parsed is not None:
+                    input_value = parsed
+            return self._dedupe_claude_lines(
+                [_format_claude_tool_action(block.name or "tool", input_value)]
+            )
+        text = "".join(block.text_fragments).strip()
+        if text:
+            return self._dedupe_claude_lines([f"claude: {text}"])
+        return []
+
+    def _dedupe_claude_lines(self, lines: list[str]) -> list[str]:
+        deduped: list[str] = []
+        for line in lines:
+            if line.startswith("claude action:"):
+                if line in self._claude_seen_action_lines:
+                    continue
+                self._claude_seen_action_lines.add(line)
+            elif line.startswith("claude:"):
+                if line in self._claude_seen_text_lines:
+                    continue
+                self._claude_seen_text_lines.add(line)
+            elif line in {
+                "claude is thinking",
+                "claude is rate limited; waiting",
+            }:
+                if line in self._claude_seen_status_lines:
+                    continue
+                self._claude_seen_status_lines.add(line)
+            deduped.append(line)
+        return deduped
+
+
+@dataclass
+class _ClaudeStreamBlock:
+    block_type: str | None
+    name: str | None = None
+    input_value: object = None
+    input_fragments: list[str] = field(default_factory=list)
+    text_fragments: list[str] = field(default_factory=list)
 
 
 def relative_path(path: Path, repo_path: Path) -> str:
@@ -414,12 +555,103 @@ def _format_claude_content(content: object) -> list[str]:
                 lines.append(f"claude: {text}")
         elif block_type == "tool_use":
             name = _string_value(block, "name") or "tool"
-            lines.append(f"claude action: {name}")
+            input_value = block.get("input")
+            lines.append(_format_claude_tool_action(name, input_value))
         elif block_type == "tool_result":
             lines.append("claude tool result")
-        elif block_type:
-            lines.append(f"claude content: {block_type}")
+        elif block_type in {"thinking", "redacted_thinking"}:
+            lines.append("claude is thinking")
     return lines
+
+
+def _format_claude_tool_action(name: str, input_value: object) -> str:
+    label = f"claude action: {name}"
+    if not isinstance(input_value, dict):
+        return label
+
+    if name == "Bash":
+        description = _first_text(input_value, ("description",))
+        if description:
+            return f"{label}: {_one_line(description)}"
+        command = _first_text(input_value, ("command",))
+        if command:
+            return f"{label}: {_one_line(command)}"
+        return label
+
+    if name in {"Read", "Write", "Edit", "MultiEdit"}:
+        path = _first_text(input_value, ("file_path", "path"))
+        if path:
+            return f"{label} {_display_path(path)}"
+        return label
+
+    if name in {"Grep", "Glob"}:
+        pattern = _first_text(input_value, ("pattern",))
+        path = _first_text(input_value, ("path",))
+        detail = " in ".join(
+            part
+            for part in (
+                _one_line(pattern) if pattern else None,
+                _display_path(path) if path else None,
+            )
+            if part
+        )
+        if detail:
+            return f"{label}: {detail}"
+        return label
+
+    if name == "LS":
+        path = _first_text(input_value, ("path",))
+        if path:
+            return f"{label} {_display_path(path)}"
+        return label
+
+    description = _first_text(input_value, ("description",))
+    if description:
+        return f"{label}: {_one_line(description)}"
+    return label
+
+
+def _display_path(path: str) -> str:
+    text = path.strip()
+    if not text:
+        return text
+    if text.startswith("/"):
+        name = Path(text).name
+        if name:
+            return name
+    return _one_line(text, limit=120)
+
+
+def _one_line(text: str, *, limit: int = 160) -> str:
+    normalized = " ".join(text.strip().split())
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[: limit - 3] + "..."
+
+
+def _claude_block_key(
+    event: dict[str, object],
+    content_block: dict[str, object] | None = None,
+) -> int | str | None:
+    index = event.get("index")
+    if isinstance(index, int):
+        return index
+    if content_block is not None:
+        block_id = _string_value(content_block, "id")
+        if block_id:
+            return block_id
+    return None
+
+
+def _first_mapping(
+    mapping: dict[str, object],
+    keys: tuple[str, ...],
+) -> dict[str, object] | None:
+    for key in keys:
+        value = mapping.get(key)
+        if isinstance(value, dict):
+            return value
+    return None
 
 
 def _string_value(mapping: dict[str, object], key: str) -> str | None:

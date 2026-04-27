@@ -134,8 +134,7 @@ def test_build_claude_command_uses_stream_json_when_streaming(
         "text",
         "--output-format",
         "stream-json",
-        "--include-partial-messages",
-        "--include-hook-events",
+        "--verbose",
     ]
 
 
