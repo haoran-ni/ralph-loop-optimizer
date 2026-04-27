@@ -211,6 +211,15 @@ def test_resume_command_continues_existing_run(
 
     output = capsys.readouterr().out
     assert exit_code == 0
+    assert (
+        f"[ralph-loop] Resuming optimization run from {state.run_paths.run_id}"
+        in output
+    )
+    assert "[ralph-loop] Starting iteration 002 of 2" in output
+    assert "[ralph-loop] Prompt for iteration 002" in output
+    assert "[ralph-loop] Calling backend: fake" in output
+    assert "[ralph-loop] Evaluating harness:" in output
+    assert "[evaluation] score=10" in output
     assert f"Run {state.run_paths.run_id} resumed." in output
     assert "Iterations completed: 2" in output
     assert "Latest experiment commit:" in output

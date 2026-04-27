@@ -28,6 +28,7 @@ from ralph_loop_optimizer.orchestrator import (
     run_iteration,
     should_continue,
 )
+from ralph_loop_optimizer.progress import ProgressReporter
 
 
 class ResumeError(ValueError):
@@ -99,18 +100,27 @@ def validate_resume_state(run_paths: RunPaths) -> None:
         expected_number += 1
 
 
-def resume_loop(repo_path: Path, run_id: str) -> RunState:
+def resume_loop(
+    repo_path: Path,
+    run_id: str,
+    *,
+    progress: ProgressReporter | None = None,
+) -> RunState:
     run_paths = _run_paths_for_id(repo_path, run_id)
+    if progress is not None:
+        progress.status(f"Resuming optimization run from {run_paths.run_id}")
     state = load_run_state(run_paths)
     _assert_clean_resume_worktree(state.run_paths.repo_path)
     _restore_last_completed_iteration_commit(state)
 
     while should_continue(state):
-        record = run_iteration(state)
+        record = run_iteration(state, progress=progress)
         state = replace(
             state,
             completed_iterations=(*state.completed_iterations, record),
         )
+    if progress is not None:
+        progress.status("Optimization run completed")
     return state
 
 

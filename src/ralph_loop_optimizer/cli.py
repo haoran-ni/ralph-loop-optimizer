@@ -247,7 +247,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 def cmd_resume(args: argparse.Namespace) -> int:
-    state = resume_loop(args.harness, args.run_id)
+    state = resume_loop(args.harness, args.run_id, progress=ProgressReporter())
     print(f"Run {state.run_paths.run_id} resumed.")
     print(f"Iterations completed: {len(state.completed_iterations)}")
     if state.completed_iterations:
