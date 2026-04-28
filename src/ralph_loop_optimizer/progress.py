@@ -18,6 +18,7 @@ GREEN = "\033[32m"
 YELLOW = "\033[33m"
 RED = "\033[31m"
 PURPLE = "\033[38;2;106;0;255m"
+CLAUDE_STATUS_REPEAT_INTERVAL = 25
 
 
 class TerminalStyle:
@@ -169,7 +170,7 @@ class BackendEventFormatter:
         self._active_git_diff_commands: set[str] = set()
         self._claude_stream_blocks: dict[int | str, _ClaudeStreamBlock] = {}
         self._claude_seen_system_events: set[str] = set()
-        self._claude_seen_status_lines: set[str] = set()
+        self._claude_status_counts: dict[str, int] = {}
         self._claude_seen_action_lines: set[str] = set()
         self._claude_seen_text_lines: set[str] = set()
 
@@ -375,6 +376,10 @@ class BackendEventFormatter:
 
         if block_type in {"thinking", "redacted_thinking"}:
             return self._dedupe_claude_lines(["claude is thinking"])
+        if block_type == "tool_use":
+            name = _string_value(content_block, "name")
+            if name in {"Bash", "Write", "Edit", "MultiEdit"}:
+                return [f"claude action started: {name}"]
         return []
 
     def _update_claude_content_block(self, event: dict[str, object]) -> list[str]:
@@ -437,9 +442,10 @@ class BackendEventFormatter:
                 "claude is thinking",
                 "claude is rate limited; waiting",
             }:
-                if line in self._claude_seen_status_lines:
+                count = self._claude_status_counts.get(line, 0) + 1
+                self._claude_status_counts[line] = count
+                if count != 1 and count % CLAUDE_STATUS_REPEAT_INTERVAL != 0:
                     continue
-                self._claude_seen_status_lines.add(line)
             deduped.append(line)
         return deduped
 

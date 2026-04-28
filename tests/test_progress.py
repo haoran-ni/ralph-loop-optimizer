@@ -278,6 +278,25 @@ def test_claude_formatter_buffers_stream_tool_use_until_stop() -> None:
     assert lines == ["claude action: Read strategy.py"]
 
 
+def test_claude_formatter_shows_long_tool_use_start() -> None:
+    event = {
+        "type": "stream_event",
+        "event": {
+            "type": "content_block_start",
+            "index": 1,
+            "content_block": {
+                "type": "tool_use",
+                "name": "Bash",
+                "input": {},
+            },
+        },
+    }
+
+    lines = BackendEventFormatter("claude").format_chunk(json.dumps(event) + "\n")
+
+    assert lines == ["claude action started: Bash"]
+
+
 def test_claude_formatter_suppresses_stream_protocol_metadata() -> None:
     event = {
         "type": "stream_event",
@@ -328,6 +347,30 @@ def test_claude_formatter_collapses_thinking_deltas_to_status() -> None:
         "claude is thinking"
     ]
     assert formatter.format_chunk(json.dumps(thinking_delta) + "\n") == []
+
+
+def test_claude_formatter_repeats_long_running_status_periodically() -> None:
+    formatter = BackendEventFormatter("claude")
+    thinking_delta = {
+        "type": "stream_event",
+        "event": {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {
+                "type": "thinking_delta",
+                "thinking": "hidden analysis",
+            },
+        },
+    }
+
+    outputs = [
+        formatter.format_chunk(json.dumps(thinking_delta) + "\n")
+        for _ in range(25)
+    ]
+
+    assert outputs[0] == ["claude is thinking"]
+    assert outputs[1:24] == [[] for _ in range(23)]
+    assert outputs[24] == ["claude is thinking"]
 
 
 def test_progress_reporter_keeps_plain_output_when_color_disabled() -> None:
