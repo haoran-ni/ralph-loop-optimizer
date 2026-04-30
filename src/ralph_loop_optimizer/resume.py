@@ -215,7 +215,6 @@ def _load_iteration_record(
     return IterationRecord(
         iteration_number=iteration_number,
         prompt_path=iteration_paths.prompt_path,
-        evaluation_path=iteration_paths.evaluation_path,
         result_path=iteration_paths.result_path,
         lesson_path=iteration_paths.lesson_path,
         diff_path=iteration_paths.diff_path,
@@ -242,7 +241,6 @@ def _iteration_paths(run_paths: RunPaths, iteration_number: int) -> IterationPat
         iteration_dir=iteration_dir,
         prompt_path=iteration_dir / "prompt.md",
         lesson_prompt_path=iteration_dir / "lesson_prompt.md",
-        evaluation_path=iteration_dir / "evaluation.txt",
         result_path=iteration_dir / "result.md",
         lesson_path=iteration_dir / "lesson.md",
         diff_path=iteration_dir / "diff.patch",
@@ -341,7 +339,6 @@ def _validate_complete_iteration(iteration_dir: Path) -> None:
 def _missing_iteration_files(iteration_dir: Path) -> list[str]:
     required = [
         "prompt.md",
-        "evaluation.txt",
         "result.md",
         "lesson.md",
         "diff.patch",

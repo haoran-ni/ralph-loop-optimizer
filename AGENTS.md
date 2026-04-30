@@ -95,7 +95,7 @@ Each optimization iteration should conceptually:
 5. Ask the selected coding CLI to attempt an improvement in the harness repository.
 6. Run or request the harness evaluation.
 7. Capture performance output, logs, diffs, and relevant artifacts.
-8. Write the implementation prompt, evaluation output, diff, result record, and a seed lesson under `ralph_loop_runs/`.
+8. Write the implementation prompt, result record with evaluation output, diff, and a seed lesson under `ralph_loop_runs/`.
 9. Ask the same coding CLI to update `lesson.md` from the implementation diff and evaluation feedback.
 10. Commit the completed iteration in the harness Git repository.
 11. Decide whether to continue based on configuration and results.
@@ -120,7 +120,6 @@ ralph_loop_runs/
       001/
         prompt.md
         lesson_prompt.md
-        evaluation.txt
         result.md
         lesson.md
         diff.patch

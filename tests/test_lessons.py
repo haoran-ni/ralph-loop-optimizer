@@ -28,7 +28,6 @@ def test_distill_lesson_links_successful_iteration_evidence() -> None:
             evaluation_succeeded=True,
             evaluation_exit_code=0,
             commit_hash="abc1234",
-            evaluation_path=Path("ralph_loop_runs/run-001/iterations/001/evaluation.txt"),
             diff_path=Path("ralph_loop_runs/run-001/iterations/001/diff.patch"),
             result_path=Path("ralph_loop_runs/run-001/iterations/001/result.md"),
         )
@@ -39,11 +38,10 @@ def test_distill_lesson_links_successful_iteration_evidence() -> None:
     assert "- Evaluation: succeeded with exit code 0." in lesson
     assert "- Commit: `abc1234`." in lesson
     assert (
-        "- Evaluation output: "
-        "`ralph_loop_runs/run-001/iterations/001/evaluation.txt`"
+        "- Result and evaluation record: "
+        "`ralph_loop_runs/run-001/iterations/001/result.md`"
     ) in lesson
     assert "- Diff: `ralph_loop_runs/run-001/iterations/001/diff.patch`" in lesson
-    assert "- Result record: `ralph_loop_runs/run-001/iterations/001/result.md`" in lesson
     assert "Draft lesson seed for the post-evaluation AI review" in lesson
     assert "compare the current metric output against prior evidence" in lesson
     assert "record only the key takeaway" in lesson

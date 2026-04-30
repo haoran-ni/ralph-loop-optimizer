@@ -32,7 +32,6 @@ class IterationPaths:
     iteration_dir: Path
     prompt_path: Path
     lesson_prompt_path: Path
-    evaluation_path: Path
     result_path: Path
     lesson_path: Path
     diff_path: Path
@@ -86,7 +85,6 @@ def create_iteration_paths(
         iteration_dir=iteration_dir,
         prompt_path=iteration_dir / "prompt.md",
         lesson_prompt_path=iteration_dir / "lesson_prompt.md",
-        evaluation_path=iteration_dir / "evaluation.txt",
         result_path=iteration_dir / "result.md",
         lesson_path=iteration_dir / "lesson.md",
         diff_path=iteration_dir / "diff.patch",

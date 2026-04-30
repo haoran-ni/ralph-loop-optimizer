@@ -182,9 +182,18 @@ def _read_stream(
             callback(chunk)
 
 
-def format_evaluation_result(result: EvaluationResult) -> str:
+def format_evaluation_result(
+    result: EvaluationResult,
+    *,
+    heading_level: int = 1,
+) -> str:
+    if heading_level < 1:
+        raise ValueError("heading_level must be at least 1")
+
+    heading = "#" * heading_level
+    subheading = "#" * (heading_level + 1)
     lines = [
-        "# Evaluation Result",
+        f"{heading} Evaluation Result",
         "",
         f"- Mode: {'manual' if result.manual_required else 'command'}",
         "- Command: "
@@ -208,17 +217,20 @@ def format_evaluation_result(result: EvaluationResult) -> str:
 
     lines.extend(
         [
-            "## Stdout",
+            f"{subheading} Stdout",
             "",
             *_format_text_block(result.stdout),
             "",
-            "## Stderr",
+            f"{subheading} Stderr",
             "",
             *_format_text_block(result.stderr),
             "",
-            "## Captured Output Files",
+            f"{subheading} Captured Output Files",
             "",
-            *_format_output_files(result.output_files),
+            *_format_output_files(
+                result.output_files,
+                heading_level=heading_level + 2,
+            ),
             "",
         ]
     )
@@ -258,13 +270,20 @@ def _read_output_files(
     return output_files
 
 
-def _format_output_files(output_files: dict[Path, str]) -> list[str]:
+def _format_output_files(
+    output_files: dict[Path, str],
+    *,
+    heading_level: int = 3,
+) -> list[str]:
     if not output_files:
         return ["No output files were configured."]
 
     lines: list[str] = []
+    heading = "#" * heading_level
     for path, content in sorted(output_files.items(), key=lambda item: item[0].as_posix()):
-        lines.extend([f"### `{path.as_posix()}`", "", *_format_text_block(content), ""])
+        lines.extend(
+            [f"{heading} `{path.as_posix()}`", "", *_format_text_block(content), ""]
+        )
     if lines and lines[-1] == "":
         lines.pop()
     return lines

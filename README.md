@@ -289,7 +289,6 @@ ralph_loop_runs/
       001/
         prompt.md
         lesson_prompt.md
-        evaluation.txt
         result.md
         lesson.md
         diff.patch
@@ -301,8 +300,7 @@ Artifact roles:
 - `ralph-loop.json`: starter config used by `run`
 - `prompt.md`: implementation prompt sent to the backend
 - `lesson_prompt.md`: post-evaluation lesson-update prompt
-- `evaluation.txt`: captured evaluation result
-- `result.md`: normalized iteration summary
+- `result.md`: normalized iteration summary with captured evaluation output
 - `lesson.md`: compact lesson for later iterations
 - `diff.patch`: captured implementation diff
 

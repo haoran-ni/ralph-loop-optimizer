@@ -67,18 +67,19 @@ def test_init_then_single_iteration_with_fake_backend(
     assert (run_dir / "config.json").is_file()
 
     prompt = (iteration_dir / "prompt.md").read_text(encoding="utf-8")
-    evaluation = (iteration_dir / "evaluation.txt").read_text(encoding="utf-8")
     result = (iteration_dir / "result.md").read_text(encoding="utf-8")
     lesson = (iteration_dir / "lesson.md").read_text(encoding="utf-8")
     diff = (iteration_dir / "diff.patch").read_text(encoding="utf-8")
 
     assert "Improve the deterministic toy benchmark score." in prompt
     assert (iteration_dir / "lesson_prompt.md").is_file()
-    assert "toy-benchmark" in evaluation
-    assert "- Succeeded: yes" in evaluation
-    assert '"benchmark": "toy-benchmark"' in evaluation
+    assert not (iteration_dir / "evaluation.txt").exists()
+    assert "toy-benchmark" in result
+    assert "- Succeeded: yes" in result
+    assert '"benchmark": "toy-benchmark"' in result
     assert "- Backend: `fake`" in result
     assert "- Evaluation succeeded: yes" in result
+    assert "## Backend Stdout" not in result
     assert "Fake backend recorded the post-evaluation lesson update" in lesson
     assert diff == ""
 

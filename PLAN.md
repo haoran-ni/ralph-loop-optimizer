@@ -183,8 +183,7 @@ Proposed files and functions:
 - Artifact files:
   - `config.json`
   - `iterations/001/prompt.md`
-  - `iterations/001/evaluation.txt`
-  - `iterations/001/result.md`
+  - `iterations/001/result.md` with captured evaluation output
   - `iterations/001/lesson.md`
   - `iterations/001/diff.patch`
 
@@ -302,7 +301,7 @@ Proposed files and functions:
 
 Verification:
 
-- Evaluation output is saved even when the command fails.
+- Evaluation output is saved in `result.md` even when the command fails.
 - A failing evaluation produces a recorded iteration result rather than losing context.
 
 Status: Finished. The repository now has command and manual evaluation execution, stdout/stderr/exit-code/timeout capture, optional output-file capture, plain-text result formatting, and focused evaluation tests.

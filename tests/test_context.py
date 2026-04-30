@@ -74,14 +74,14 @@ def test_load_latest_evaluation_reads_newest_evaluation(
     run_paths = create_run_paths(_git_repo(tmp_path / "harness"), "run-001")
     first_paths = create_iteration_paths(run_paths, 1)
     second_paths = create_iteration_paths(run_paths, 2)
-    _write(first_paths.evaluation_path, "score=1\n")
-    _write(second_paths.evaluation_path, "score=2\n")
+    _write(first_paths.result_path, "score=1\n")
+    _write(second_paths.result_path, "score=2\n")
 
     latest = load_latest_evaluation(run_paths)
 
     assert latest == (
         "Iteration 002 "
-        "(`ralph_loop_runs/run-001/iterations/002/evaluation.txt`):"
+        "(`ralph_loop_runs/run-001/iterations/002/result.md`):"
         "\n\nscore=2"
     )
 
@@ -110,7 +110,7 @@ def test_build_iteration_prompt_includes_context_and_evaluation(
     context = IterationContext(
         operating_brief="# Brief\n\nFollow the operating brief.\n",
         prior_lessons=("Iteration 001 (`lesson.md`):\n\nKeep changes small.",),
-        latest_evaluation="Iteration 001 (`evaluation.txt`):\n\nscore=7",
+        latest_evaluation="Iteration 001 (`result.md`):\n\nscore=7",
         worktree_status=WorktreeStatus(
             is_dirty=True,
             entries=(" M strategy.py", "?? notes.md"),
@@ -209,7 +209,7 @@ def test_build_lesson_update_prompt_instructs_backend_to_update_lesson_and_commi
     context = IterationContext(
         operating_brief="# Brief\n",
         prior_lessons=("Iteration 001 (`lesson.md`):\n\nKeep it small.",),
-        latest_evaluation="Iteration 001 (`evaluation.txt`):\n\nscore=7",
+        latest_evaluation="Iteration 001 (`result.md`):\n\nscore=7",
     )
 
     prompt = build_lesson_update_prompt(

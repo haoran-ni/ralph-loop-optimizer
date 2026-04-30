@@ -63,18 +63,18 @@ def load_latest_evaluation(run_paths: RunPaths) -> str | None:
         return None
 
     for iteration_dir in reversed(_iteration_dirs(run_paths)):
-        evaluation_path = iteration_dir / "evaluation.txt"
-        if not evaluation_path.is_file():
+        result_path = iteration_dir / "result.md"
+        if not result_path.is_file():
             continue
-        evaluation = evaluation_path.read_text(
+        result = result_path.read_text(
             encoding="utf-8",
             errors="replace",
         ).strip()
         return _format_evidence_text(
             f"Iteration {iteration_dir.name}",
-            evaluation_path,
+            result_path,
             run_paths.repo_path,
-            evaluation or "(empty evaluation output)",
+            result or "(empty result record)",
         )
     return None
 
@@ -176,9 +176,8 @@ def build_lesson_update_prompt(
         "",
         f"- Harness repository: `{config.harness_path.expanduser().resolve()}`",
         f"- Lesson update prompt: `{_relative_path(iteration_paths.lesson_prompt_path, config.harness_path)}`",
-        f"- Evaluation output: `{_relative_path(iteration_paths.evaluation_path, config.harness_path)}`",
+        f"- Result and evaluation record: `{_relative_path(iteration_paths.result_path, config.harness_path)}`",
         f"- Diff: `{_relative_path(iteration_paths.diff_path, config.harness_path)}`",
-        f"- Result record: `{_relative_path(iteration_paths.result_path, config.harness_path)}`",
         f"- Lesson artifact: `{_relative_path(iteration_paths.lesson_path, config.harness_path)}`",
         "",
         "## Prior Lessons",

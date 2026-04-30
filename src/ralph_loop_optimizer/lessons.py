@@ -19,7 +19,6 @@ class LessonEvidence:
     evaluation_timed_out: bool = False
     manual_evaluation_required: bool = False
     commit_hash: str | None = None
-    evaluation_path: Path | None = None
     diff_path: Path | None = None
     result_path: Path | None = None
 
@@ -112,9 +111,9 @@ def _format_outcome(record: LessonEvidence) -> list[str]:
 
 def _format_evidence(record: LessonEvidence) -> list[str]:
     return [
-        f"- Evaluation output: {_format_optional_path(record.evaluation_path)}",
+        "- Result and evaluation record: "
+        f"{_format_optional_path(record.result_path)}",
         f"- Diff: {_format_optional_path(record.diff_path)}",
-        f"- Result record: {_format_optional_path(record.result_path)}",
         f"- Commit hash: {_format_commit(record.commit_hash)}",
     ]
 

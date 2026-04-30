@@ -39,14 +39,16 @@ def test_run_loop_completes_one_fake_iteration(tmp_path: Path) -> None:
     assert state.run_paths.config_path.is_file()
     assert (iteration_dir / "prompt.md").is_file()
     assert (iteration_dir / "lesson_prompt.md").is_file()
-    assert "score=10" in (iteration_dir / "evaluation.txt").read_text(
-        encoding="utf-8"
-    )
+    assert not (iteration_dir / "evaluation.txt").exists()
     assert (iteration_dir / "diff.patch").read_text(encoding="utf-8") == ""
     assert "Backend succeeded: yes" in (iteration_dir / "result.md").read_text(
         encoding="utf-8"
     )
     result = (iteration_dir / "result.md").read_text(encoding="utf-8")
+    assert "score=10" in result
+    assert "## Backend Stdout" not in result
+    assert "## Evaluation Result" in result
+    assert "### Stdout" in result
     lesson = (iteration_dir / "lesson.md").read_text(encoding="utf-8")
     lesson_prompt = (iteration_dir / "lesson_prompt.md").read_text(encoding="utf-8")
     assert "Final commit hash: recorded by Git" in result
@@ -104,9 +106,8 @@ def test_run_loop_records_failing_evaluation(tmp_path: Path) -> None:
     assert record.succeeded is False
     assert record.evaluation_result.exit_code == 5
     iteration_dir = state.run_paths.iterations_dir / "001"
-    assert "- Exit code: 5" in (iteration_dir / "evaluation.txt").read_text(
-        encoding="utf-8"
-    )
+    assert not (iteration_dir / "evaluation.txt").exists()
+    assert "- Exit code: 5" in (iteration_dir / "result.md").read_text(encoding="utf-8")
     assert "Evaluation did not succeed" in (iteration_dir / "lesson.md").read_text(
         encoding="utf-8"
     )

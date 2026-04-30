@@ -54,7 +54,6 @@ class OrchestratorError(ValueError):
 class IterationRecord:
     iteration_number: int
     prompt_path: Path
-    evaluation_path: Path
     result_path: Path
     lesson_path: Path
     diff_path: Path
@@ -221,10 +220,6 @@ def run_iteration(
             evaluation_timed_out=evaluation_result.timed_out,
             manual_evaluation_required=evaluation_result.manual_required,
             commit_hash=None,
-            evaluation_path=_relative_path(
-                iteration_paths.evaluation_path,
-                state.run_paths.repo_path,
-            ),
             diff_path=_relative_path(
                 iteration_paths.diff_path,
                 state.run_paths.repo_path,
@@ -247,7 +242,6 @@ def run_iteration(
         iteration_paths,
         prompt,
         lesson_prompt,
-        evaluation_text,
         captured_diff,
         lesson_seed,
         backend_result,
@@ -306,7 +300,6 @@ def run_iteration(
     return IterationRecord(
         iteration_number=iteration_number,
         prompt_path=iteration_paths.prompt_path,
-        evaluation_path=iteration_paths.evaluation_path,
         result_path=iteration_paths.result_path,
         lesson_path=iteration_paths.lesson_path,
         diff_path=iteration_paths.diff_path,
@@ -362,7 +355,6 @@ def _write_iteration_artifacts(
     iteration_paths: IterationPaths,
     prompt: str,
     lesson_prompt: str,
-    evaluation_text: str,
     captured_diff: str,
     lesson_text: str,
     backend_result: BackendResult,
@@ -379,11 +371,6 @@ def _write_iteration_artifacts(
     write_text_artifact(
         iteration_paths.lesson_prompt_path,
         lesson_prompt,
-        repo_path=state.run_paths.repo_path,
-    )
-    write_text_artifact(
-        iteration_paths.evaluation_path,
-        evaluation_text,
         repo_path=state.run_paths.repo_path,
     )
     write_text_artifact(
@@ -429,9 +416,7 @@ def _format_iteration_result(
             "- Final commit hash: recorded by Git after Ralph Loop Optimizer "
             "stages and commits the completed iteration.",
             "",
-            "## Backend Stdout",
-            "",
-            *_format_text_block(backend_result.stdout),
+            format_evaluation_result(evaluation_result, heading_level=2),
             "",
             "## Backend Stderr",
             "",

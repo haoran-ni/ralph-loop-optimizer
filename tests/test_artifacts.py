@@ -42,9 +42,6 @@ def test_create_iteration_paths_uses_zero_padded_directory(
     assert iteration_paths.lesson_prompt_path == (
         iteration_paths.iteration_dir / "lesson_prompt.md"
     )
-    assert iteration_paths.evaluation_path == (
-        iteration_paths.iteration_dir / "evaluation.txt"
-    )
     assert iteration_paths.result_path == iteration_paths.iteration_dir / "result.md"
     assert iteration_paths.lesson_path == iteration_paths.iteration_dir / "lesson.md"
     assert iteration_paths.diff_path == iteration_paths.iteration_dir / "diff.patch"
@@ -78,16 +75,16 @@ def test_write_text_and_json_artifacts(tmp_path: Path) -> None:
 def test_copy_artifact_copies_file_into_run_layout(tmp_path: Path) -> None:
     run_paths = create_run_paths(_git_repo(tmp_path / "harness"), "run-001")
     iteration_paths = create_iteration_paths(run_paths, 1)
-    source = tmp_path / "evaluation-output.txt"
+    source = tmp_path / "result-record.md"
     source.write_text("score=10\n", encoding="utf-8")
 
     copy_artifact(
         source,
-        iteration_paths.evaluation_path,
+        iteration_paths.result_path,
         repo_path=run_paths.repo_path,
     )
 
-    assert iteration_paths.evaluation_path.read_text(encoding="utf-8") == "score=10\n"
+    assert iteration_paths.result_path.read_text(encoding="utf-8") == "score=10\n"
 
 
 def test_artifact_writes_reject_paths_outside_harness_repository(
